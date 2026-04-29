@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+release_build/
+
+# Python environment
+python_env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Environment (contains secrets)
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+
+# Large files (video/audio sources)
+# *.mp3
+# *.wav
+# *.mp4
+node_modules

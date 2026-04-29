@@ -1,0 +1,65 @@
+{
+  "name": "music-processor",
+  "version": "1.0.0",
+  "description": "Music downloader with pitch shifting and vocal removal",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "node start.js",
+    "build": "electron-builder --win",
+    "build:dir": "electron-builder --win --dir"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "electron": "^25.9.8",
+    "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "electron-log": "^5.0.0",
+    "soundtouchjs": "^0.1.30"
+  },
+  "build": {
+    "appId": "com.musictool.processor",
+    "productName": "Music Processor",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "C:/Users/User/Anaconda3/envs/musictool",
+        "to": "python",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "C:/Users/User/ffmpeg-8.1-full_build-shared",
+        "to": "ffmpeg",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asar": true,
+    "compression": "maximum"
+  }
+}

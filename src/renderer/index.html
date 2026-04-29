@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Music Processor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">&#127925;</div>
+        <div class="header-text">
+          <h1>Music Processor</h1>
+          <span class="version">v1.0.0</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="output-folder-section">
+      <div class="folder-card">
+        <div class="folder-info">
+          <span class="folder-icon">&#128193;</span>
+          <div class="folder-details">
+            <span class="folder-label">輸出資料夾</span>
+            <span class="folder-path" id="output-folder-path">載入中...</span>
+          </div>
+        </div>
+        <button id="select-folder-btn" class="btn btn-small">更改</button>
+      </div>
+    </section>
+
+    <section class="input-section">
+      <div class="input-mode-tabs">
+        <button class="tab-btn active" id="tab-url">網址輸入</button>
+        <button class="tab-btn" id="tab-local">本地檔案</button>
+      </div>
+
+      <div class="input-content" id="url-input-content">
+        <div class="url-row">
+          <input type="text" id="url-input" placeholder="https://www.youtube.com/watch?v=..." />
+          <button id="paste-btn" class="btn btn-secondary">貼上</button>
+        </div>
+        <span id="url-error" class="error-text hidden"></span>
+      </div>
+
+      <div class="input-content hidden" id="local-input-content">
+        <div class="local-file-row">
+          <span class="file-name" id="local-file-name">尚未選擇檔案</span>
+          <button id="select-file-btn" class="btn btn-secondary">選擇音訊</button>
+        </div>
+        <span id="file-error" class="error-text hidden"></span>
+      </div>
+    </section>
+
+    <section class="processing-section">
+      <div class="control-card pitch-card">
+        <div class="card-header">
+          <span class="card-icon">&#127928;</span>
+          <label>音高調整</label>
+        </div>
+        <div class="pitch-control">
+          <span class="pitch-label">-12</span>
+          <input type="range" id="pitch-slider" min="-12" max="12" value="0" step="1" />
+          <span class="pitch-label">+12</span>
+        </div>
+        <div class="pitch-value">
+          <span id="pitch-display">0</span>
+          <span class="pitch-unit">半音</span>
+        </div>
+      </div>
+
+      <div class="control-card vocal-card">
+        <div class="card-header">
+          <span class="card-icon">&#127908;</span>
+          <label>人聲移除</label>
+        </div>
+        <div class="toggle-container">
+          <input type="checkbox" id="vocal-toggle" class="toggle-input" />
+          <label for="vocal-toggle" class="toggle-label">
+            <span class="toggle-slider"></span>
+          </label>
+          <span id="vocal-status" class="vocal-status">關閉</span>
+        </div>
+        <p class="card-hint">移除人聲，生成純音樂版本</p>
+      </div>
+    </section>
+
+    <section class="options-section">
+      <div class="option-row">
+        <div class="option-card flex-1">
+          <label class="option-label">輸出格式</label>
+          <div class="format-options">
+            <label class="format-option">
+              <input type="radio" name="format" value="wav" checked />
+              <span>WAV</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="format" value="mp3" />
+              <span>MP3</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="format" value="flac" />
+              <span>FLAC</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="option-card flex-1">
+          <label class="option-label">音訊品質</label>
+          <div class="format-options">
+            <label class="format-option">
+              <input type="radio" name="bitrate" value="16" checked />
+              <span>16-bit</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="bitrate" value="24" />
+              <span>24-bit</span>
+            </label>
+            <label class="format-option">
+              <input type="radio" name="bitrate" value="32" />
+              <span>32-bit</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="option-card">
+        <label class="option-label">多軌輸出</label>
+        <div class="format-options">
+          <label class="format-option">
+            <input type="checkbox" id="multi-stem-vocals" class="stem-checkbox" value="vocals" />
+            <span>Vocals</span>
+          </label>
+          <label class="format-option">
+            <input type="checkbox" id="multi-stem-bass" class="stem-checkbox" value="bass" />
+            <span>Bass</span>
+          </label>
+          <label class="format-option">
+            <input type="checkbox" id="multi-stem-drums" class="stem-checkbox" value="drums" />
+            <span>Drums</span>
+          </label>
+          <label class="format-option">
+            <input type="checkbox" id="multi-stem-other" class="stem-checkbox" value="other" />
+            <span>Other</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <button id="process-btn" class="btn btn-primary" disabled>
+      <span class="btn-icon">&#10548;</span>
+      <span id="process-btn-text">下載並處理</span>
+    </button>
+
+    <section class="progress-section hidden" id="progress-section">
+      <div class="progress-container">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <span class="progress-percent" id="progress-percent">0%</span>
+      </div>
+      <span class="status-text" id="status-text">準備中...</span>
+    </section>
+
+    <section class="output-section hidden" id="output-section">
+      <div class="output-card">
+        <div class="output-header">
+          <span class="output-icon">&#127925;</span>
+          <span class="output-title" id="output-title">處理完成！</span>
+        </div>
+        <div class="output-path">
+          <span class="path-label">已儲存至：</span>
+          <span class="path-value" id="output-path"></span>
+        </div>
+        <button id="open-folder-btn" class="btn btn-secondary">開啟資料夾</button>
+      </div>
+    </section>
+
+    <section class="license-section">
+      <div class="license-card">
+        <div class="license-header">
+          <div class="license-status">
+            <span class="license-icon" id="license-icon">&#128274;</span>
+            <div class="license-info">
+              <span class="license-title" id="license-title">授權狀態</span>
+              <span class="license-desc" id="license-desc">試用中</span>
+            </div>
+          </div>
+          <button id="license-toggle-btn" class="btn btn-small">啟用授權</button>
+        </div>
+        <div class="license-form hidden" id="license-form">
+          <div class="license-input-row">
+            <input type="text" id="license-key-input" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" />
+            <button id="license-activate-btn" class="btn btn-secondary">啟用</button>
+          </div>
+          <span id="license-error" class="error-text hidden"></span>
+          <button id="license-deactivate-btn" class="btn btn-small btn-deactivate">停用授權</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-section">
+      <button id="about-toggle" class="about-toggle">
+        <span>關於與授權</span>
+        <span class="about-arrow" id="about-arrow">&#9660;</span>
+      </button>
+      <div class="about-content hidden" id="about-content">
+        <div class="about-card">
+          <h3>開源元件</h3>
+          <ul class="license-list">
+            <li><strong>yt-dlp</strong> — Unlicense (公眾領域)</li>
+            <li><strong>Demucs</strong> — MIT License (Facebook Research)</li>
+            <li><strong>FFmpeg</strong> — LGPL v2.1 / GPL</li>
+            <li><strong>PyTorch</strong> — BSD-style License</li>
+            <li><strong>Electron</strong> — MIT License</li>
+          </ul>
+          <p class="about-note">
+            本軟體允許您從網路影片下載音訊。
+            請確保您在使用本軟體時遵守相關服務條款及法律。
+          </p>
+          <button id="open-license-btn" class="btn btn-small btn-secondary">檢視完整授權</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span class="log-text" id="log-text">就緒</span>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
