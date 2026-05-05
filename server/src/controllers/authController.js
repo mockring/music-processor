@@ -108,6 +108,7 @@ const AuthController = {
 
       // Check password
       console.log('Checking password...');
+      console.log('user.passwordHash:', user.passwordHash, 'type:', typeof user.passwordHash);
       const valid = await bcrypt.compare(password, user.passwordHash);
       console.log('Password valid:', valid);
       if (!valid) {

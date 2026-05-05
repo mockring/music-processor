@@ -25,10 +25,17 @@ const UserModel = {
 
   async findByEmail(email) {
     const result = await pool.query(
-      `SELECT * FROM users WHERE email = $1`,
+      `SELECT id, email, password_hash, created_at FROM users WHERE email = $1`,
       [email.toLowerCase()]
     );
-    return result.rows[0];
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      passwordHash: row.password_hash,
+      createdAt: row.created_at
+    };
   },
 
   async findById(id) {
