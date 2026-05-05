@@ -431,6 +431,8 @@ authLoginBtn.addEventListener('click', async () => {
 
   authLoginBtn.disabled = true;
   authLoginBtn.textContent = '登入中...';
+  authEmailInput.style.opacity = '0.7';
+  authPasswordInput.style.opacity = '0.7';
 
   try {
     const result = await window.api.authLogin(email, password);
@@ -440,10 +442,11 @@ authLoginBtn.addEventListener('click', async () => {
       await checkSubscription();
       await loadDevices();
       authPasswordInput.value = '';
-      // Remember email if checked
       if (authRememberEmail.checked) {
+        updateLog('儲存記住的帳號: ' + email);
         await window.api.authSaveRememberedEmail(email);
       } else {
+        updateLog('清除記住的帳號');
         await window.api.authClearRememberedEmail();
       }
     } else {
@@ -455,6 +458,8 @@ authLoginBtn.addEventListener('click', async () => {
 
   authLoginBtn.disabled = false;
   authLoginBtn.textContent = '登入';
+  authEmailInput.style.opacity = '1';
+  authPasswordInput.style.opacity = '1';
 });
 
 authRegisterBtn.addEventListener('click', async () => {
@@ -473,6 +478,8 @@ authRegisterBtn.addEventListener('click', async () => {
 
   authRegisterBtn.disabled = true;
   authRegisterBtn.textContent = '註冊中...';
+  authEmailInput.style.opacity = '0.7';
+  authPasswordInput.style.opacity = '0.7';
 
   try {
     const result = await window.api.authRegister(email, password);
@@ -490,6 +497,8 @@ authRegisterBtn.addEventListener('click', async () => {
 
   authRegisterBtn.disabled = false;
   authRegisterBtn.textContent = '註冊';
+  authEmailInput.style.opacity = '1';
+  authPasswordInput.style.opacity = '1';
 });
 
 authLogoutBtn.addEventListener('click', async () => {
@@ -542,9 +551,11 @@ async function initAuth() {
   await checkSubscription();
   // Load remembered email
   const rememberedEmail = await window.api.authGetRememberedEmail();
+  updateLog('載入記住的帳號: ' + (rememberedEmail || '無'));
   if (rememberedEmail) {
     authEmailInput.value = rememberedEmail;
     authRememberEmail.checked = true;
+    updateLog('已填入記住的帳號: ' + rememberedEmail);
   }
 }
 

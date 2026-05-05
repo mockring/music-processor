@@ -47,6 +47,7 @@ class AuthManager {
 
   async request(endpoint, options = {}) {
     const url = `${SERVER_URL}/v1${endpoint}`;
+    log.info('Auth request:', url, options.method || 'GET');
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers
@@ -61,8 +62,10 @@ class AuthManager {
         ...options,
         headers
       });
+      log.info('Auth response status:', response.status);
 
       const data = await response.json();
+      log.info('Auth response data:', JSON.stringify(data));
 
       if (!response.ok) {
         throw new Error(data.error?.message || 'Request failed');
@@ -134,19 +137,26 @@ class AuthManager {
   }
 
   async login(email, password) {
-    const result = await this.request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password })
-    });
+    log.info('Attempting login for:', email);
+    try {
+      const result = await this.request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
 
-    if (result.success && result.data) {
-      this.token = result.data.token;
-      this.user = result.data.user;
-      this.saveToken();
-      this.saveUser();
+      if (result.success && result.data) {
+        this.token = result.data.token;
+        this.user = result.data.user;
+        this.saveToken();
+        this.saveUser();
+        log.info('Login successful');
+      }
+
+      return result;
+    } catch (e) {
+      log.error('Login error:', e.message);
+      throw e;
     }
-
-    return result;
   }
 
   async logout() {
