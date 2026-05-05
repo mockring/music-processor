@@ -11,7 +11,7 @@ const migrations = [
     name: 'create_users_table',
     sql: `
       CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -24,7 +24,7 @@ const migrations = [
     name: 'create_subscriptions_table',
     sql: `
       CREATE TABLE IF NOT EXISTS subscriptions (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         ecpay_customer_id VARCHAR(50),
         plan VARCHAR(20) NOT NULL CHECK (plan IN ('monthly', 'yearly', 'lifetime')),
@@ -43,7 +43,7 @@ const migrations = [
     name: 'create_payments_table',
     sql: `
       CREATE TABLE IF NOT EXISTS payments (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         subscription_id UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
         ecpay_order_id VARCHAR(50),
@@ -64,7 +64,7 @@ const migrations = [
     name: 'create_devices_table',
     sql: `
       CREATE TABLE IF NOT EXISTS devices (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         machine_id VARCHAR(255) NOT NULL,
         name VARCHAR(255),
@@ -101,7 +101,7 @@ const migrations = [
     name: 'create_password_reset_tokens_table',
     sql: `
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         token VARCHAR(255) NOT NULL,
         expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -121,6 +121,42 @@ async function runMigrations() {
   }
 
   console.log('Running database migrations...');
+
+  // First, try to enable UUID extension and create the generate_uuid_v4 function
+  try {
+    await pool.query(`
+      CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA public;
+    `);
+    console.log('✓ Enabled pgcrypto extension');
+  } catch (e) {
+    try {
+      await pool.query(`
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+      `);
+      console.log('✓ Enabled uuid-ossp extension');
+    } catch (e2) {
+      console.log('○ Could not enable UUID extension, will use fallback');
+    }
+  }
+
+  // Create a UUID generation function that works regardless of available extension
+  try {
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION generate_uuid_v4()
+      RETURNS UUID AS $$
+      BEGIN
+        RETURN generate_uuid_v4();
+      EXCEPTION WHEN undefined_function THEN
+        RETURN gen_random_uuid();
+      EXCEPTION WHEN undefined_function THEN
+        RETURN md5(random()::text || now()::text)::uuid;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    console.log('✓ Created generate_uuid_v4() function');
+  } catch (e) {
+    console.log('○ Could not create generate_uuid_v4() function');
+  }
 
   for (const migration of migrations) {
     try {
