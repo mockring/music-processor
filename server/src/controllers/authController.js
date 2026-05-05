@@ -83,8 +83,10 @@ const AuthController = {
 
   // Login
   async login(req, res) {
+    console.log('=== Login started ===');
     try {
       const { email, password } = req.body;
+      console.log('Email received:', email);
 
       if (!email || !password) {
         return res.status(400).json({
@@ -94,7 +96,9 @@ const AuthController = {
       }
 
       // Find user
+      console.log('Finding user by email...');
       const user = await UserModel.findByEmail(email);
+      console.log('User found:', user ? 'yes' : 'no', user ? user.id : '');
       if (!user) {
         return res.status(401).json({
           success: false,
@@ -103,7 +107,9 @@ const AuthController = {
       }
 
       // Check password
+      console.log('Checking password...');
       const valid = await bcrypt.compare(password, user.passwordHash);
+      console.log('Password valid:', valid);
       if (!valid) {
         return res.status(401).json({
           success: false,
@@ -112,6 +118,7 @@ const AuthController = {
       }
 
       // Get subscription - user.id might be a UUID object that needs string conversion
+      console.log('Getting subscription for user.id:', user.id, 'type:', typeof user.id);
       let subscription;
       try {
         subscription = await SubscriptionModel.findByUserId(String(user.id));
@@ -122,12 +129,14 @@ const AuthController = {
       }
 
       // Generate token
+      console.log('Generating token...');
       const token = jwt.sign(
         { userId: user.id, email: user.email },
         config.jwt.secret,
         { expiresIn: config.jwt.expiry }
       );
 
+      console.log('=== Login success ===');
       res.json({
         success: true,
         data: {
