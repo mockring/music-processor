@@ -145,7 +145,7 @@ async function runMigrations() {
       CREATE OR REPLACE FUNCTION generate_uuid_v4()
       RETURNS UUID AS $$
       BEGIN
-        RETURN generate_uuid_v4();
+        RETURN uuid_generate_v4();
       EXCEPTION WHEN undefined_function THEN
         RETURN gen_random_uuid();
       EXCEPTION WHEN undefined_function THEN
