@@ -37,26 +37,13 @@
     </header>
 
     <section class="input-section">
-      <div class="input-mode-tabs">
-        <button class="tab-btn active" id="tab-url">網址輸入</button>
-        <button class="tab-btn" id="tab-local">本地檔案</button>
+      <div class="input-row">
+        <input type="text" id="url-input" placeholder="貼上 YouTube 網址或本地檔案路徑" />
+        <button id="paste-btn" class="btn btn-secondary">貼上</button>
+        <button id="select-file-btn" class="btn btn-secondary">選擇檔案</button>
       </div>
-
-      <div class="input-content" id="url-input-content">
-        <div class="url-row">
-          <input type="text" id="url-input" placeholder="https://www.youtube.com/watch?v=..." />
-          <button id="paste-btn" class="btn btn-secondary">貼上</button>
-        </div>
-        <span id="url-error" class="error-text hidden"></span>
-      </div>
-
-      <div class="input-content hidden" id="local-input-content">
-        <div class="local-file-row">
-          <span class="file-name" id="local-file-name">尚未選擇檔案</span>
-          <button id="select-file-btn" class="btn btn-secondary">選擇音訊</button>
-        </div>
-        <span id="file-error" class="error-text hidden"></span>
-      </div>
+      <span id="input-hint" class="hint-text">自動判斷網址或本地檔案</span>
+      <span id="url-error" class="error-text hidden"></span>
     </section>
 
     <!-- Advanced Settings (Collapsible) -->

@@ -1,7 +1,6 @@
 const urlInput = document.getElementById('url-input');
 const pasteBtn = document.getElementById('paste-btn');
 const urlError = document.getElementById('url-error');
-const fileError = document.getElementById('file-error');
 const pitchSlider = document.getElementById('pitch-slider');
 const pitchDisplay = document.getElementById('pitch-display');
 const vocalToggle = document.getElementById('vocal-toggle');
@@ -46,13 +45,9 @@ const subscriptionPlans = document.getElementById('subscription-plans');
 const devicesSection = document.getElementById('devices-section');
 const devicesList = document.getElementById('devices-list');
 
-// Input mode tabs
-const tabUrl = document.getElementById('tab-url');
-const tabLocal = document.getElementById('tab-local');
-const urlInputContent = document.getElementById('url-input-content');
-const localInputContent = document.getElementById('local-input-content');
-const localFileName = document.getElementById('local-file-name');
+// Input elements
 const selectFileBtn = document.getElementById('select-file-btn');
+const inputHint = document.getElementById('input-hint');
 
 // Multi-stem checkboxes
 const multiStemCheckboxes = document.querySelectorAll('.stem-checkbox');
@@ -61,7 +56,6 @@ let isProcessing = false;
 let currentOutputPath = '';
 let customOutputFolder = null;
 let selectedLocalFile = null;
-let inputMode = 'url';
 let currentUser = null;
 let currentSubscription = null;
 
@@ -69,6 +63,11 @@ function updateLog(message) {
   const now = new Date();
   const time = now.toLocaleTimeString('zh-TW', { hour12: false });
   logText.textContent = `[${time}] ${message}`;
+}
+
+function isUrl(input) {
+  const trimmed = input.trim();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
 }
 
 function getSelectedFormat() {
@@ -97,22 +96,47 @@ function canProcess() {
   if (!currentSubscription || !currentSubscription.valid) {
     return false;
   }
-  if (inputMode === 'url') {
-    return urlInput.value.trim().length > 0;
-  } else {
-    return selectedLocalFile !== null;
-  }
+  const input = urlInput.value.trim();
+  if (input.length > 0) return true;
+  if (selectedLocalFile) return true;
+  return false;
 }
 
 function updateProcessButton() {
+  const input = urlInput.value.trim();
+  const hasInput = input.length > 0;
+  const hasLocalFile = selectedLocalFile !== null;
+  const isUrlInput = isUrl(input);
+
   processBtn.disabled = !canProcess() || isProcessing;
 
   if (!currentSubscription || !currentSubscription.valid) {
     processBtnText.textContent = '請先登入訂閱';
-  } else if (inputMode === 'url') {
+  } else if (hasInput && isUrlInput) {
     processBtnText.textContent = '下載並處理';
-  } else {
+  } else if (hasInput && !isUrlInput) {
     processBtnText.textContent = '處理音訊';
+  } else if (hasLocalFile) {
+    processBtnText.textContent = '處理音訊';
+  } else {
+    processBtnText.textContent = '請輸入網址或選擇檔案';
+  }
+
+  // Update hint text
+  if (hasInput) {
+    if (isUrlInput) {
+      inputHint.textContent = '已偵測為 YouTube 網址';
+      inputHint.classList.remove('hint-error');
+    } else {
+      inputHint.textContent = '已偵測為本地檔案路徑';
+      inputHint.classList.remove('hint-error');
+    }
+  } else if (hasLocalFile) {
+    inputHint.textContent = '已選擇本地檔案';
+    inputHint.classList.remove('hint-error');
+  } else {
+    inputHint.textContent = '自動判斷網址或本地檔案';
+    inputHint.classList.remove('hint-error');
   }
 }
 
@@ -139,43 +163,26 @@ function validateUrl() {
 }
 
 urlInput.addEventListener('input', () => {
-  validateUrl();
+  updateProcessButton();
 });
 
 pasteBtn.addEventListener('click', async () => {
   const text = await window.api.pasteFromClipboard();
   urlInput.value = text;
-  validateUrl();
-  updateLog('已從剪貼簿貼上網址');
-});
-
-tabUrl.addEventListener('click', () => {
-  inputMode = 'url';
-  tabUrl.classList.add('active');
-  tabLocal.classList.remove('active');
-  urlInputContent.classList.remove('hidden');
-  localInputContent.classList.add('hidden');
-  fileError.classList.add('hidden');
   updateProcessButton();
-});
-
-tabLocal.addEventListener('click', () => {
-  inputMode = 'local';
-  tabUrl.classList.remove('active');
-  tabLocal.classList.add('active');
-  urlInputContent.classList.add('hidden');
-  localInputContent.classList.remove('hidden');
-  urlError.classList.add('hidden');
-  updateProcessButton();
+  const input = urlInput.value.trim();
+  if (isUrl(input)) {
+    updateLog('已從剪貼簿貼上網址');
+  } else {
+    updateLog('已從剪貼簿貼上路徑');
+  }
 });
 
 selectFileBtn.addEventListener('click', async () => {
   const file = await window.api.selectLocalFile();
   if (file) {
     selectedLocalFile = file.path;
-    localFileName.textContent = file.name;
-    localFileName.classList.add('has-file');
-    fileError.classList.add('hidden');
+    urlInput.value = file.path;
     updateProcessButton();
     updateLog(`已選擇檔案: ${file.name}`);
   }
@@ -213,25 +220,32 @@ processBtn.addEventListener('click', async () => {
     stems: getSelectedStems()
   };
 
-  if (inputMode === 'url') {
-    const url = urlInput.value.trim();
-    const validation = await window.api.validateUrl(url);
+  const input = urlInput.value.trim();
 
+  // Auto-detect: URL or local file
+  if (input.length > 0 && isUrl(input)) {
+    // URL mode
+    const validation = await window.api.validateUrl(input);
     if (!validation.valid) {
       urlError.textContent = validation.error;
       urlError.classList.remove('hidden');
+      inputHint.textContent = '無效的網址';
+      inputHint.classList.add('hint-error');
       return;
     }
-
-    options.url = url;
-  } else {
-    if (!selectedLocalFile) {
-      fileError.textContent = '請選擇音訊檔案';
-      fileError.classList.remove('hidden');
-      return;
-    }
+    options.url = input;
+  } else if (input.length > 0) {
+    // Local file path mode
+    options.localFile = input;
+    options.localFileName = input.split(/[\\/]/).pop();
+  } else if (selectedLocalFile) {
+    // File picker selected
     options.localFile = selectedLocalFile;
-    options.localFileName = localFileName.textContent;
+    options.localFileName = selectedLocalFile.split(/[\\/]/).pop();
+  } else {
+    urlError.textContent = '請輸入網址或選擇音訊檔案';
+    urlError.classList.remove('hidden');
+    return;
   }
 
   isProcessing = true;
@@ -247,7 +261,7 @@ processBtn.addEventListener('click', async () => {
   window.api.process(options).then(result => {
     isProcessing = false;
     processBtn.disabled = false;
-    processBtnText.textContent = inputMode === 'url' ? '下載並處理' : '處理音訊';
+    updateProcessButton();
 
     if (result.success) {
       currentOutputPath = result.filePath;

@@ -251,7 +251,7 @@ body {
   animation: fadeIn 0.2s ease;
 }
 
-.url-row {
+.input-row {
   display: flex;
   gap: 10px;
 }
@@ -275,6 +275,16 @@ body {
 
 #url-input::placeholder {
   color: var(--text-secondary);
+}
+
+.hint-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.hint-text.hint-error {
+  color: #ff6b6b;
 }
 
 .local-file-row {
