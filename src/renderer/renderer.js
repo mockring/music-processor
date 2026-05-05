@@ -453,7 +453,9 @@ authLoginBtn.addEventListener('click', async () => {
       alert(result.error?.message || '登入失敗');
     }
   } catch (e) {
-    alert('登入失敗: ' + e.message);
+    updateLog('登入錯誤: ' + e.message);
+    console.error('Login error details:', e);
+    alert('登入失敗: ' + e.message + '\n\n詳細資訊：\n' + (e.stack || e.description || '無'));
   }
 
   authLoginBtn.disabled = false;

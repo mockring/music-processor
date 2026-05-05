@@ -290,10 +290,18 @@ ipcMain.handle('deactivate-license', async () => {
 
 // Auth IPC handlers
 ipcMain.handle('auth-login', async (event, email, password) => {
-  if (!authManager) {
-    authManager = new AuthManager();
+  log.info('IPC auth-login received:', email);
+  try {
+    if (!authManager) {
+      authManager = new AuthManager();
+    }
+    const result = await authManager.login(email, password);
+    log.info('auth-login result:', JSON.stringify(result));
+    return result;
+  } catch (e) {
+    log.error('auth-login exception:', e);
+    return { success: false, error: { message: e.message, stack: e.stack } };
   }
-  return authManager.login(email, password);
 });
 
 ipcMain.handle('auth-register', async (event, email, password) => {

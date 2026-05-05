@@ -111,8 +111,15 @@ const AuthController = {
         });
       }
 
-      // Get subscription
-      const subscription = await SubscriptionModel.findByUserId(user.id);
+      // Get subscription - user.id might be a UUID object that needs string conversion
+      let subscription;
+      try {
+        subscription = await SubscriptionModel.findByUserId(String(user.id));
+        console.log('Subscription found:', subscription);
+      } catch (subError) {
+        console.error('Subscription query error:', subError);
+        throw subError;
+      }
 
       // Generate token
       const token = jwt.sign(
@@ -156,7 +163,7 @@ const AuthController = {
         });
       }
 
-      const subscription = await SubscriptionModel.findByUserId(user.id);
+      const subscription = await SubscriptionModel.findByUserId(String(user.id));
 
       res.json({
         success: true,
