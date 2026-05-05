@@ -9,12 +9,14 @@ const { DemucsRunner } = require('./modules/demucsRunner');
 const { FileManager } = require('./modules/fileManager');
 const { AudioConverter } = require('./modules/audioConverter');
 const { LicenseManager } = require('./modules/licenseManager');
+const { AuthManager } = require('./modules/authManager');
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
 
 let mainWindow;
 let licenseManager;
+let authManager;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -284,4 +286,89 @@ ipcMain.handle('deactivate-license', async () => {
     licenseManager = new LicenseManager();
   }
   return licenseManager.deactivate();
+});
+
+// Auth IPC handlers
+ipcMain.handle('auth-login', async (event, email, password) => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.login(email, password);
+});
+
+ipcMain.handle('auth-register', async (event, email, password) => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.register(email, password);
+});
+
+ipcMain.handle('auth-logout', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.logout();
+});
+
+ipcMain.handle('auth-get-user', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.getUser();
+});
+
+ipcMain.handle('auth-is-logged-in', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.isLoggedIn();
+});
+
+ipcMain.handle('auth-check-subscription', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.checkSubscription();
+});
+
+ipcMain.handle('auth-get-subscription-plans', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.getSubscriptionPlans();
+});
+
+ipcMain.handle('auth-get-devices', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.getDevices();
+});
+
+ipcMain.handle('auth-remove-device', async (event, deviceId) => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.removeDevice(deviceId);
+});
+
+ipcMain.handle('auth-save-remembered-email', async (event, email) => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.saveRememberedEmail(email);
+});
+
+ipcMain.handle('auth-get-remembered-email', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.getRememberedEmail();
+});
+
+ipcMain.handle('auth-clear-remembered-email', async () => {
+  if (!authManager) {
+    authManager = new AuthManager();
+  }
+  return authManager.clearRememberedEmail();
 });

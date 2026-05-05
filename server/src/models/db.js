@@ -198,9 +198,46 @@ const DeviceModel = {
   }
 };
 
+// ============ PASSWORD RESET TOKENS ============
+const PasswordResetTokenModel = {
+  async create(data) {
+    const result = await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [data.userId, data.token, data.expiresAt]
+    );
+    return result.rows[0];
+  },
+
+  async findByToken(token) {
+    const result = await pool.query(
+      `SELECT prt.*, u.email
+       FROM password_reset_tokens prt
+       JOIN users u ON u.id = prt.user_id
+       WHERE prt.token = $1 AND prt.used_at IS NULL AND prt.expires_at > CURRENT_TIMESTAMP`,
+      [token]
+    );
+    return result.rows[0];
+  },
+
+  async markUsed(token) {
+    const result = await pool.query(
+      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = $1 RETURNING *`,
+      [token]
+    );
+    return result.rows[0];
+  },
+
+  async deleteByUserId(userId) {
+    await pool.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [userId]);
+    return true;
+  }
+};
+
 module.exports = {
   UserModel,
   SubscriptionModel,
   PaymentModel,
-  DeviceModel
+  DeviceModel,
+  PasswordResetTokenModel
 };

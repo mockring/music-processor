@@ -24,15 +24,27 @@ const aboutArrow = document.getElementById('about-arrow');
 const aboutContent = document.getElementById('about-content');
 const openLicenseBtn = document.getElementById('open-license-btn');
 
-// License elements
+// Auth elements
+const authSection = document.getElementById('auth-section');
+const authForm = document.getElementById('auth-form');
+const authUser = document.getElementById('auth-user');
+const authEmailInput = document.getElementById('auth-email');
+const authPasswordInput = document.getElementById('auth-password');
+const authRememberEmail = document.getElementById('auth-remember-email');
+const authLoginBtn = document.getElementById('auth-login-btn');
+const authRegisterBtn = document.getElementById('auth-register-btn');
+const authUserEmail = document.getElementById('auth-user-email');
+const authSubscriptionStatus = document.getElementById('auth-subscription-status');
+const authLogoutBtn = document.getElementById('auth-logout-btn');
+
+// License/Subscription elements
 const licenseToggleBtn = document.getElementById('license-toggle-btn');
 const licenseForm = document.getElementById('license-form');
-const licenseKeyInput = document.getElementById('license-key-input');
-const licenseActivateBtn = document.getElementById('license-activate-btn');
-const licenseDeactivateBtn = document.getElementById('license-deactivate-btn');
-const licenseError = document.getElementById('license-error');
 const licenseDesc = document.getElementById('license-desc');
 const licenseIcon = document.getElementById('license-icon');
+const subscriptionPlans = document.getElementById('subscription-plans');
+const devicesSection = document.getElementById('devices-section');
+const devicesList = document.getElementById('devices-list');
 
 // Input mode tabs
 const tabUrl = document.getElementById('tab-url');
@@ -49,7 +61,9 @@ let isProcessing = false;
 let currentOutputPath = '';
 let customOutputFolder = null;
 let selectedLocalFile = null;
-let inputMode = 'url'; // 'url' or 'local'
+let inputMode = 'url';
+let currentUser = null;
+let currentSubscription = null;
 
 function updateLog(message) {
   const now = new Date();
@@ -80,6 +94,9 @@ function isMultiStemEnabled() {
 }
 
 function canProcess() {
+  if (!currentSubscription || !currentSubscription.valid) {
+    return false;
+  }
   if (inputMode === 'url') {
     return urlInput.value.trim().length > 0;
   } else {
@@ -90,7 +107,9 @@ function canProcess() {
 function updateProcessButton() {
   processBtn.disabled = !canProcess() || isProcessing;
 
-  if (inputMode === 'url') {
+  if (!currentSubscription || !currentSubscription.valid) {
+    processBtnText.textContent = '請先登入訂閱';
+  } else if (inputMode === 'url') {
     processBtnText.textContent = '下載並處理';
   } else {
     processBtnText.textContent = '處理音訊';
@@ -130,7 +149,6 @@ pasteBtn.addEventListener('click', async () => {
   updateLog('已從剪貼簿貼上網址');
 });
 
-// Input mode tabs
 tabUrl.addEventListener('click', () => {
   inputMode = 'url';
   tabUrl.classList.add('active');
@@ -173,8 +191,17 @@ vocalToggle.addEventListener('change', () => {
   vocalStatus.style.color = vocalToggle.checked ? '#e94560' : '';
 });
 
+// Initialize vocal toggle state (default to ON)
+vocalStatus.textContent = '開啟';
+vocalStatus.style.color = '#e94560';
+
 processBtn.addEventListener('click', async () => {
   if (isProcessing) return;
+
+  if (!currentSubscription || !currentSubscription.valid) {
+    alert('請先登入並訂閱後再使用');
+    return;
+  }
 
   const options = {
     pitch: parseInt(pitchSlider.value),
@@ -272,6 +299,22 @@ async function initOutputFolder() {
 initOutputFolder();
 updateLog('程式就緒');
 
+// Advanced section toggle
+const advancedToggle = document.getElementById('advanced-toggle');
+const advancedArrow = document.getElementById('advanced-arrow');
+const advancedContent = document.getElementById('advanced-content');
+
+advancedToggle.addEventListener('click', () => {
+  const isHidden = advancedContent.classList.contains('hidden');
+  if (isHidden) {
+    advancedContent.classList.remove('hidden');
+    advancedToggle.classList.add('expanded');
+  } else {
+    advancedContent.classList.add('hidden');
+    advancedToggle.classList.remove('expanded');
+  }
+});
+
 // About / License section
 aboutToggle.addEventListener('click', () => {
   const isHidden = aboutContent.classList.contains('hidden');
@@ -289,127 +332,220 @@ openLicenseBtn.addEventListener('click', () => {
   updateLog('已開啟授權檔案');
 });
 
-// License Section
+// Auth functions
+async function updateAuthUI() {
+  const isLoggedIn = await window.api.authIsLoggedIn();
+
+  if (isLoggedIn) {
+    authForm.classList.add('hidden');
+    authUser.classList.remove('hidden');
+    const user = await window.api.authGetUser();
+    if (user) {
+      currentUser = user;
+      authUserEmail.textContent = user.email;
+    }
+  } else {
+    authForm.classList.remove('hidden');
+    authUser.classList.add('hidden');
+    currentUser = null;
+  }
+}
+
+async function checkSubscription() {
+  try {
+    const result = await window.api.authCheckSubscription();
+    currentSubscription = result;
+    updateSubscriptionUI();
+    updateProcessButton();
+  } catch (e) {
+    console.error('Failed to check subscription:', e);
+    currentSubscription = { valid: false };
+    updateProcessButton();
+  }
+}
+
+function updateSubscriptionUI() {
+  if (!currentSubscription) {
+    licenseIcon.innerHTML = '&#128274;';
+    licenseDesc.textContent = '未登入';
+    licenseDesc.className = 'license-desc';
+    return;
+  }
+
+  if (currentSubscription.valid) {
+    licenseIcon.innerHTML = '&#128275;';
+    licenseDesc.textContent = `已訂閱 (${currentSubscription.plan || 'active'})`;
+    licenseDesc.className = 'license-desc activated';
+  } else {
+    licenseIcon.innerHTML = '&#128274;';
+    licenseDesc.textContent = currentSubscription.error === 'NOT_LOGGED_IN' ? '請先登入' : '未訂閱';
+    licenseDesc.className = 'license-desc expired';
+  }
+}
+
+async function loadDevices() {
+  try {
+    const devices = await window.api.authGetDevices();
+    devicesList.innerHTML = '';
+    if (devices && devices.length > 0) {
+      devices.forEach(device => {
+        const div = document.createElement('div');
+        div.className = 'device-item';
+        div.innerHTML = `
+          <span>${device.name || device.machineId}</span>
+          <button class="btn btn-small btn-remove-device" data-id="${device.id}">移除</button>
+        `;
+        devicesList.appendChild(div);
+      });
+      devicesSection.classList.remove('hidden');
+    } else {
+      devicesSection.classList.add('hidden');
+    }
+  } catch (e) {
+    console.error('Failed to load devices:', e);
+    devicesSection.classList.add('hidden');
+  }
+}
+
+async function loadSubscriptionPlans() {
+  try {
+    const result = await window.api.authGetSubscriptionPlans();
+    if (result.success && result.data) {
+      // Plans are shown in HTML, just log success
+      updateLog('已載入訂閱方案');
+    }
+  } catch (e) {
+    console.error('Failed to load subscription plans:', e);
+  }
+}
+
+// Auth event listeners
+authLoginBtn.addEventListener('click', async () => {
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+
+  if (!email || !password) {
+    alert('請輸入電子郵件和密碼');
+    return;
+  }
+
+  authLoginBtn.disabled = true;
+  authLoginBtn.textContent = '登入中...';
+
+  try {
+    const result = await window.api.authLogin(email, password);
+    if (result.success) {
+      updateLog('登入成功');
+      await updateAuthUI();
+      await checkSubscription();
+      await loadDevices();
+      authPasswordInput.value = '';
+      // Remember email if checked
+      if (authRememberEmail.checked) {
+        await window.api.authSaveRememberedEmail(email);
+      } else {
+        await window.api.authClearRememberedEmail();
+      }
+    } else {
+      alert(result.error?.message || '登入失敗');
+    }
+  } catch (e) {
+    alert('登入失敗: ' + e.message);
+  }
+
+  authLoginBtn.disabled = false;
+  authLoginBtn.textContent = '登入';
+});
+
+authRegisterBtn.addEventListener('click', async () => {
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+
+  if (!email || !password) {
+    alert('請輸入電子郵件和密碼');
+    return;
+  }
+
+  if (password.length < 6) {
+    alert('密碼至少需要 6 個字元');
+    return;
+  }
+
+  authRegisterBtn.disabled = true;
+  authRegisterBtn.textContent = '註冊中...';
+
+  try {
+    const result = await window.api.authRegister(email, password);
+    if (result.success) {
+      updateLog('註冊成功');
+      await updateAuthUI();
+      await checkSubscription();
+      authPasswordInput.value = '';
+    } else {
+      alert(result.error?.message || '註冊失敗');
+    }
+  } catch (e) {
+    alert('註冊失敗: ' + e.message);
+  }
+
+  authRegisterBtn.disabled = false;
+  authRegisterBtn.textContent = '註冊';
+});
+
+authLogoutBtn.addEventListener('click', async () => {
+  try {
+    await window.api.authLogout();
+    currentUser = null;
+    currentSubscription = { valid: false };
+    updateLog('已登出');
+    await updateAuthUI();
+    updateSubscriptionUI();
+    updateProcessButton();
+  } catch (e) {
+    console.error('Logout error:', e);
+  }
+});
+
+// License/Subscription section
 licenseToggleBtn.addEventListener('click', () => {
   const isHidden = licenseForm.classList.contains('hidden');
   if (isHidden) {
     licenseForm.classList.remove('hidden');
     licenseToggleBtn.textContent = '關閉';
+    loadSubscriptionPlans();
+    loadDevices();
   } else {
     licenseForm.classList.add('hidden');
-    licenseToggleBtn.textContent = '啟用授權';
-    licenseError.classList.add('hidden');
+    licenseToggleBtn.textContent = '訂閱方案';
   }
 });
 
-// Format license key input (auto-add dashes)
-licenseKeyInput.addEventListener('input', (e) => {
-  let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (value.length > 4) {
-    value = value.substring(0, 4) + '-' + value.substring(4);
-  }
-  if (value.length > 9) {
-    value = value.substring(0, 9) + '-' + value.substring(9);
-  }
-  if (value.length > 14) {
-    value = value.substring(0, 14) + '-' + value.substring(14);
-  }
-  if (value.length > 19) {
-    value = value.substring(0, 19);
-  }
-  e.target.value = value;
-});
-
-licenseActivateBtn.addEventListener('click', async () => {
-  const key = licenseKeyInput.value.trim();
-  if (!key) {
-    licenseError.textContent = '請輸入授權碼';
-    licenseError.classList.remove('hidden');
-    return;
-  }
-
-  licenseActivateBtn.disabled = true;
-  licenseActivateBtn.textContent = '驗證中...';
-
-  try {
-    const result = await window.api.activateLicense(key);
-    if (result.valid) {
-      licenseError.classList.add('hidden');
-      licenseKeyInput.value = '';
-      licenseForm.classList.add('hidden');
-      licenseToggleBtn.textContent = '授權已啟用';
-      updateLicenseUI(result);
-      updateLog('授權啟用成功');
-    } else {
-      licenseError.textContent = result.error;
-      licenseError.classList.remove('hidden');
+// Delegate click for remove device buttons
+devicesList.addEventListener('click', async (e) => {
+  if (e.target.classList.contains('btn-remove-device')) {
+    const deviceId = e.target.dataset.id;
+    if (confirm('確定要移除這個裝置嗎？')) {
+      try {
+        await window.api.authRemoveDevice(deviceId);
+        await loadDevices();
+        updateLog('已移除裝置');
+      } catch (e) {
+        alert('移除裝置失敗');
+      }
     }
-  } catch (e) {
-    licenseError.textContent = '授權驗證失敗';
-    licenseError.classList.remove('hidden');
-  }
-
-  licenseActivateBtn.disabled = false;
-  licenseActivateBtn.textContent = '啟用';
-});
-
-licenseDeactivateBtn.addEventListener('click', async () => {
-  if (!confirm('確定要停用授權嗎？停用後將恢復試用期。')) {
-    return;
-  }
-
-  try {
-    const result = await window.api.deactivateLicense();
-    if (result.success) {
-      initLicenseStatus();
-      updateLog('授權已停用');
-    }
-  } catch (e) {
-    licenseError.textContent = '停用授權失敗';
-    licenseError.classList.remove('hidden');
   }
 });
 
-function updateLicenseUI(status) {
-  if (status.activated && status.valid) {
-    licenseIcon.innerHTML = '&#128275;'; // unlocked
-    licenseDesc.textContent = '已授權';
-    licenseDesc.className = 'license-desc activated';
-    licenseToggleBtn.textContent = '已啟用';
-    licenseToggleBtn.disabled = true;
-  } else if (status.trial && status.valid) {
-    licenseIcon.innerHTML = '&#128274;'; // locked
-    if (status.trialDays > 0) {
-      licenseDesc.textContent = `試用中 (剩餘 ${status.trialDays} 天)`;
-      licenseDesc.className = 'license-desc trial';
-    } else {
-      licenseDesc.textContent = '試用期已到，請輸入授權碼';
-      licenseDesc.className = 'license-desc expired';
-    }
-    licenseToggleBtn.textContent = '啟用授權';
-    licenseToggleBtn.disabled = false;
-  } else if (!status.valid) {
-    licenseIcon.innerHTML = '&#128275;';
-    licenseDesc.textContent = '授權無效或已過期';
-    licenseDesc.className = 'license-desc expired';
-    licenseToggleBtn.textContent = '啟用授權';
-    licenseToggleBtn.disabled = false;
-  } else {
-    licenseIcon.innerHTML = '&#128274;';
-    licenseDesc.textContent = '試用中';
-    licenseDesc.className = 'license-desc trial';
-    licenseToggleBtn.textContent = '啟用授權';
-    licenseToggleBtn.disabled = false;
+// Initialize auth state
+async function initAuth() {
+  await updateAuthUI();
+  await checkSubscription();
+  // Load remembered email
+  const rememberedEmail = await window.api.authGetRememberedEmail();
+  if (rememberedEmail) {
+    authEmailInput.value = rememberedEmail;
+    authRememberEmail.checked = true;
   }
 }
 
-async function initLicenseStatus() {
-  try {
-    const status = await window.api.getLicenseStatus();
-    updateLicenseUI(status);
-  } catch (e) {
-    console.error('Failed to get license status:', e);
-  }
-}
-
-initLicenseStatus();
+initAuth();

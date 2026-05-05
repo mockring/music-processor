@@ -1,7 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { UserModel, SubscriptionModel } = require('../models');
+const crypto = require('crypto');
+const { UserModel, SubscriptionModel, PasswordResetTokenModel } = require('../models');
 const config = require('../config');
+const { sendPasswordResetEmail } = require('../services/email');
 
 const AuthController = {
   // Register
@@ -185,6 +187,110 @@ const AuthController = {
       success: true,
       message: '已登出'
     });
+  },
+
+  // Forgot password - send reset email
+  async forgotPassword(req, res) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'MISSING_EMAIL', message: '請輸入電子郵件' }
+        });
+      }
+
+      // Find user
+      const user = await UserModel.findByEmail(email);
+
+      // Always return success to prevent email enumeration attacks
+      if (!user) {
+        return res.json({
+          success: true,
+          message: '如果該電子郵件存在，重置連結已寄出'
+        });
+      }
+
+      // Generate reset token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+      // Delete any existing tokens for this user
+      await PasswordResetTokenModel.deleteByUserId(user.id);
+
+      // Create new token
+      await PasswordResetTokenModel.create({
+        userId: user.id,
+        token,
+        expiresAt
+      });
+
+      // Send email
+      await sendPasswordResetEmail(email, token);
+
+      res.json({
+        success: true,
+        message: '如果該電子郵件存在，重置連結已寄出'
+      });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: '處理請求失敗' }
+      });
+    }
+  },
+
+  // Reset password with token
+  async resetPassword(req, res) {
+    try {
+      const { token, password } = req.body;
+
+      if (!token || !password) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'MISSING_FIELDS', message: '請提供重置 token 和新密碼' }
+        });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'PASSWORD_TOO_SHORT', message: '密碼至少需要 8 個字元' }
+        });
+      }
+
+      // Find valid token
+      const resetToken = await PasswordResetTokenModel.findByToken(token);
+
+      if (!resetToken) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_TOKEN', message: '重置連結無效或已過期' }
+        });
+      }
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(password, 12);
+
+      // Update user password
+      await UserModel.update(resetToken.user_id, { passwordHash });
+
+      // Mark token as used
+      await PasswordResetTokenModel.markUsed(token);
+
+      res.json({
+        success: true,
+        message: '密碼已成功重置，請使用新密碼登入'
+      });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: '重置密碼失敗' }
+      });
+    }
   }
 };
 

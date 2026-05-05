@@ -126,6 +126,57 @@ Authorization: Bearer <token>
 
 ---
 
+### 1.5 Forgot Password (忘記密碼)
+```
+POST /auth/forgot-password
+```
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "如果該電子郵件存在，重置連結已寄出"
+}
+```
+
+**說明：** 為防止 email 列舉攻擊，無論 email 是否存在都會回傳相同訊息。有效 token 連結會寄至該 email。
+
+---
+
+### 1.6 Reset Password (重置密碼)
+```
+POST /auth/reset-password
+```
+
+**Request Body:**
+```json
+{
+  "token": "abc123...",
+  "password": "newSecurePassword123"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "密碼已成功重置，請使用新密碼登入"
+}
+```
+
+**Errors:**
+- `400` - Invalid token (無效或已過期)
+- `400` - Password too short (< 8 chars)
+
+---
+
 ## 2. Subscription (付費方案)
 
 ### 2.1 Get Subscription Plans
@@ -693,6 +744,16 @@ POST /webhook/recurring
 | last_active_at | TIMESTAMP | 最後活躍時間 |
 | created_at | TIMESTAMP | 建立時間 |
 
+### password_reset_tokens
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | 主鍵 |
+| user_id | UUID | 外鍵 users |
+| token | VARCHAR(255) | 重置 token (一次性) |
+| expires_at | TIMESTAMP | 過期時間 (30分鐘後) |
+| used_at | TIMESTAMP | 使用時間 (NULL=未使用) |
+| created_at | TIMESTAMP | 建立時間 |
+
 ---
 
 ## 9. Rate Limiting
@@ -760,6 +821,10 @@ ECPAY_MERCHANT_ID=your_merchant_id
 ECPAY_HASH_KEY=your_hash_key
 ECPAY_HASH_IV=your_hash_iv
 ECPAY_DEBUG=true
+
+# Email (Resend)
+RESEND_API_KEY=re_xxxxxxxxxxxxx
+EMAIL_FROM=onboarding@resend.dev
 
 # Frontend
 FRONTEND_URL=https://yourdomain.com

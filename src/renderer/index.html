@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
-  <title>Music Processor</title>
+  <title>Processing Ring</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,24 +13,28 @@
       <div class="header-content">
         <div class="logo">&#127925;</div>
         <div class="header-text">
-          <h1>Music Processor</h1>
+          <h1>Processing Ring</h1>
           <span class="version">v1.0.0</span>
         </div>
       </div>
-    </header>
-
-    <section class="output-folder-section">
-      <div class="folder-card">
-        <div class="folder-info">
-          <span class="folder-icon">&#128193;</span>
-          <div class="folder-details">
-            <span class="folder-label">輸出資料夾</span>
-            <span class="folder-path" id="output-folder-path">載入中...</span>
-          </div>
+      <div class="auth-section" id="auth-section">
+        <div class="auth-form" id="auth-form">
+          <input type="email" id="auth-email" placeholder="電子郵件" />
+          <input type="password" id="auth-password" placeholder="密碼" />
+          <label class="remember-email">
+            <input type="checkbox" id="auth-remember-email" />
+            <span>記住帳號</span>
+          </label>
+          <button id="auth-login-btn" class="btn btn-small">登入</button>
+          <button id="auth-register-btn" class="btn btn-small btn-secondary">註冊</button>
         </div>
-        <button id="select-folder-btn" class="btn btn-small">更改</button>
+        <div class="auth-user hidden" id="auth-user">
+          <span id="auth-user-email"></span>
+          <span id="auth-subscription-status"></span>
+          <button id="auth-logout-btn" class="btn btn-small">登出</button>
+        </div>
       </div>
-    </section>
+    </header>
 
     <section class="input-section">
       <div class="input-mode-tabs">
@@ -55,97 +59,118 @@
       </div>
     </section>
 
-    <section class="processing-section">
-      <div class="control-card pitch-card">
-        <div class="card-header">
-          <span class="card-icon">&#127928;</span>
-          <label>音高調整</label>
+    <!-- Advanced Settings (Collapsible) -->
+    <section class="advanced-section" id="advanced-section">
+      <button id="advanced-toggle" class="advanced-toggle">
+        <span class="advanced-toggle-text">進階設定</span>
+        <span class="advanced-arrow" id="advanced-arrow">&#9654;</span>
+      </button>
+      <div class="advanced-content hidden" id="advanced-content">
+        <!-- Output Folder -->
+        <div class="folder-card">
+          <div class="folder-info">
+            <span class="folder-icon">&#128193;</span>
+            <div class="folder-details">
+              <span class="folder-label">輸出資料夾</span>
+              <span class="folder-path" id="output-folder-path">載入中...</span>
+            </div>
+          </div>
+          <button id="select-folder-btn" class="btn btn-small">更改</button>
         </div>
-        <div class="pitch-control">
-          <span class="pitch-label">-12</span>
-          <input type="range" id="pitch-slider" min="-12" max="12" value="0" step="1" />
-          <span class="pitch-label">+12</span>
-        </div>
-        <div class="pitch-value">
-          <span id="pitch-display">0</span>
-          <span class="pitch-unit">半音</span>
-        </div>
-      </div>
 
-      <div class="control-card vocal-card">
-        <div class="card-header">
-          <span class="card-icon">&#127908;</span>
-          <label>人聲移除</label>
-        </div>
-        <div class="toggle-container">
-          <input type="checkbox" id="vocal-toggle" class="toggle-input" />
-          <label for="vocal-toggle" class="toggle-label">
-            <span class="toggle-slider"></span>
-          </label>
-          <span id="vocal-status" class="vocal-status">關閉</span>
-        </div>
-        <p class="card-hint">移除人聲，生成純音樂版本</p>
-      </div>
-    </section>
+        <div class="advanced-controls">
+          <!-- Processing Controls -->
+          <div class="control-card pitch-card">
+            <div class="card-header">
+              <span class="card-icon">&#127928;</span>
+              <label>音高調整</label>
+            </div>
+            <div class="pitch-control">
+              <span class="pitch-label">-12</span>
+              <input type="range" id="pitch-slider" min="-12" max="12" value="0" step="1" />
+              <span class="pitch-label">+12</span>
+            </div>
+            <div class="pitch-value">
+              <span id="pitch-display">0</span>
+              <span class="pitch-unit">半音</span>
+            </div>
+          </div>
 
-    <section class="options-section">
-      <div class="option-row">
-        <div class="option-card flex-1">
-          <label class="option-label">輸出格式</label>
-          <div class="format-options">
-            <label class="format-option">
-              <input type="radio" name="format" value="wav" checked />
-              <span>WAV</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="format" value="mp3" />
-              <span>MP3</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="format" value="flac" />
-              <span>FLAC</span>
-            </label>
+          <div class="control-card vocal-card">
+            <div class="card-header">
+              <span class="card-icon">&#127908;</span>
+              <label>人聲移除</label>
+            </div>
+            <div class="toggle-container">
+              <input type="checkbox" id="vocal-toggle" class="toggle-input" checked />
+              <label for="vocal-toggle" class="toggle-label">
+                <span class="toggle-slider"></span>
+              </label>
+              <span id="vocal-status" class="vocal-status">關閉</span>
+            </div>
+            <p class="card-hint">移除人聲，生成純音樂版本</p>
           </div>
         </div>
 
-        <div class="option-card flex-1">
-          <label class="option-label">音訊品質</label>
-          <div class="format-options">
-            <label class="format-option">
-              <input type="radio" name="bitrate" value="16" checked />
-              <span>16-bit</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="bitrate" value="24" />
-              <span>24-bit</span>
-            </label>
-            <label class="format-option">
-              <input type="radio" name="bitrate" value="32" />
-              <span>32-bit</span>
-            </label>
+        <!-- Output Options -->
+        <div class="option-row">
+          <div class="option-card flex-1">
+            <label class="option-label">輸出格式</label>
+            <div class="format-options">
+              <label class="format-option">
+                <input type="radio" name="format" value="wav" checked />
+                <span>WAV</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="format" value="mp3" />
+                <span>MP3</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="format" value="flac" />
+                <span>FLAC</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="option-card flex-1">
+            <label class="option-label">音訊品質</label>
+            <div class="format-options">
+              <label class="format-option">
+                <input type="radio" name="bitrate" value="16" checked />
+                <span>16-bit</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="bitrate" value="24" />
+                <span>24-bit</span>
+              </label>
+              <label class="format-option">
+                <input type="radio" name="bitrate" value="32" />
+                <span>32-bit</span>
+              </label>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="option-card">
-        <label class="option-label">多軌輸出</label>
-        <div class="format-options">
-          <label class="format-option">
-            <input type="checkbox" id="multi-stem-vocals" class="stem-checkbox" value="vocals" />
-            <span>Vocals</span>
-          </label>
-          <label class="format-option">
-            <input type="checkbox" id="multi-stem-bass" class="stem-checkbox" value="bass" />
-            <span>Bass</span>
-          </label>
-          <label class="format-option">
-            <input type="checkbox" id="multi-stem-drums" class="stem-checkbox" value="drums" />
-            <span>Drums</span>
-          </label>
-          <label class="format-option">
-            <input type="checkbox" id="multi-stem-other" class="stem-checkbox" value="other" />
-            <span>Other</span>
-          </label>
+        <div class="option-card">
+          <label class="option-label">多軌輸出</label>
+          <div class="format-options">
+            <label class="format-option">
+              <input type="checkbox" id="multi-stem-vocals" class="stem-checkbox" value="vocals" />
+              <span>Vocals</span>
+            </label>
+            <label class="format-option">
+              <input type="checkbox" id="multi-stem-bass" class="stem-checkbox" value="bass" />
+              <span>Bass</span>
+            </label>
+            <label class="format-option">
+              <input type="checkbox" id="multi-stem-drums" class="stem-checkbox" value="drums" />
+              <span>Drums</span>
+            </label>
+            <label class="format-option">
+              <input type="checkbox" id="multi-stem-other" class="stem-checkbox" value="other" />
+              <span>Other</span>
+            </label>
+          </div>
         </div>
       </div>
     </section>
@@ -186,18 +211,42 @@
             <span class="license-icon" id="license-icon">&#128274;</span>
             <div class="license-info">
               <span class="license-title" id="license-title">授權狀態</span>
-              <span class="license-desc" id="license-desc">試用中</span>
+              <span class="license-desc" id="license-desc">未登入</span>
             </div>
           </div>
-          <button id="license-toggle-btn" class="btn btn-small">啟用授權</button>
+          <button id="license-toggle-btn" class="btn btn-small">訂閱方案</button>
         </div>
         <div class="license-form hidden" id="license-form">
-          <div class="license-input-row">
-            <input type="text" id="license-key-input" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" />
-            <button id="license-activate-btn" class="btn btn-secondary">啟用</button>
+          <div class="subscription-plans" id="subscription-plans">
+            <div class="plan-item" data-plan="monthly">
+              <span class="plan-name">月付</span>
+              <div class="plan-price-wrapper">
+                <span class="plan-price-discount">NT$200/月</span>
+                <span class="plan-price-original">NT$250/月</span>
+              </div>
+              <button class="btn btn-small btn-subscribe">訂閱</button>
+            </div>
+            <div class="plan-item" data-plan="yearly">
+              <span class="plan-name">年付</span>
+              <div class="plan-price-wrapper">
+                <span class="plan-price-discount">NT$2100/年</span>
+                <span class="plan-price-original">NT$2700/年</span>
+              </div>
+              <button class="btn btn-small btn-subscribe">訂閱</button>
+            </div>
+            <div class="plan-item" data-plan="lifetime">
+              <span class="plan-name">永久</span>
+              <div class="plan-price-wrapper">
+                <span class="plan-price-discount">NT$6000</span>
+                <span class="plan-price-original">NT$9000</span>
+              </div>
+              <button class="btn btn-small btn-subscribe">訂閱</button>
+            </div>
           </div>
-          <span id="license-error" class="error-text hidden"></span>
-          <button id="license-deactivate-btn" class="btn btn-small btn-deactivate">停用授權</button>
+          <div class="devices-section" id="devices-section">
+            <h4>已註冊的裝置</h4>
+            <div id="devices-list"></div>
+          </div>
         </div>
       </div>
     </section>

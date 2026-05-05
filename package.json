@@ -20,24 +20,20 @@
     "soundtouchjs": "^0.1.30"
   },
   "build": {
-    "appId": "com.musictool.processor",
-    "productName": "Music Processor",
+    "appId": "com.processingring.app",
+    "productName": "Processing Ring",
     "directories": {
       "output": "dist"
     },
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "dir",
           "arch": [
             "x64"
           ]
         }
       ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
     },
     "files": [
       "src/**/*",

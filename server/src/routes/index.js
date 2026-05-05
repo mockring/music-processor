@@ -11,6 +11,8 @@ router.post('/auth/register', AuthController.register);
 router.post('/auth/login', AuthController.login);
 router.post('/auth/logout', authMiddleware, AuthController.logout);
 router.get('/auth/me', authMiddleware, AuthController.me);
+router.post('/auth/forgot-password', AuthController.forgotPassword);
+router.post('/auth/reset-password', AuthController.resetPassword);
 
 // ============ SUBSCRIPTION ============
 router.get('/subscription/plans', (req, res) => SubscriptionController.getPlans(req, res));

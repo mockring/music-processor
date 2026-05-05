@@ -42,6 +42,10 @@ body {
 /* Header */
 .header {
   padding: 12px 0 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
 }
 
 .header-content {
@@ -68,6 +72,98 @@ body {
   background: var(--accent-secondary);
   padding: 2px 8px;
   border-radius: 10px;
+}
+
+/* Auth Section */
+.auth-section {
+  display: flex;
+  align-items: center;
+}
+
+.auth-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-form input {
+  padding: 8px 12px;
+  font-size: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-secondary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+  width: 150px;
+}
+
+.auth-form input:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.auth-form input:focus {
+  border-color: var(--accent-primary);
+}
+
+.auth-form input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Remember email checkbox */
+.remember-email {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.remember-email input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent-primary);
+}
+
+.remember-email:hover {
+  color: var(--text-primary);
+}
+
+.auth-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#auth-user-email {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+#auth-subscription-status {
+  font-size: 12px;
+  color: var(--success);
+  background: rgba(78, 204, 163, 0.15);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+#auth-logout-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  font-size: 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+#auth-logout-btn:hover {
+  border-color: var(--error);
+  color: var(--error);
 }
 
 /* Output Folder Section */
@@ -217,6 +313,72 @@ body {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Advanced Section (Collapsible) */
+.advanced-section {
+  margin-top: 4px;
+}
+
+.advanced-toggle {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-card);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.advanced-toggle:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-secondary);
+}
+
+.advanced-toggle-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.advanced-arrow {
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: transform 0.25s ease;
+}
+
+.advanced-toggle.expanded .advanced-arrow {
+  transform: rotate(90deg);
+}
+
+.advanced-content {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.25s ease;
+}
+
+.advanced-controls {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+}
+
+.advanced-content .control-card {
+  flex: 1;
+}
+
+.advanced-content .option-row {
+  display: flex;
+  gap: 12px;
+}
+
+.advanced-content .option-card {
+  flex: 1;
 }
 
 /* Options Section */
@@ -693,6 +855,128 @@ body {
 
 .about-card .btn {
   width: 100%;
+}
+
+/* Subscription Plans */
+.subscription-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.plan-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(15, 52, 96, 0.5);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.plan-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 60px;
+}
+
+.plan-price {
+  font-size: 14px;
+  color: var(--accent-primary);
+  font-weight: 600;
+  flex: 1;
+  text-align: center;
+}
+
+.plan-price-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.plan-price-discount {
+  font-size: 14px;
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+
+.plan-price-original {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+.btn-subscribe {
+  background: linear-gradient(135deg, #e94560 0%, #d63854 100%);
+  color: white;
+  padding: 8px 16px;
+  font-size: 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-subscribe:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-subscribe:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Devices Section */
+.devices-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 14px;
+  margin-top: 8px;
+}
+
+.devices-section h4 {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+#devices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.device-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(15, 52, 96, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.btn-remove-device {
+  background: transparent;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-remove-device:hover {
+  border-color: var(--error);
+  color: var(--error);
 }
 
 /* License Section */

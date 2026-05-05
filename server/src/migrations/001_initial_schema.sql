@@ -7,11 +7,44 @@
 -- Connect to the database and run the following:
 
 -- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Try pgcrypto first (more commonly available), then uuid-ossp
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+EXCEPTION WHEN insufficient_privilege THEN
+    -- Cannot create extension, try uuid-ossp
+    BEGIN
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    EXCEPTION WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Cannot create UUID extensions.';
+    END;
+EXCEPTION WHEN others THEN
+    -- Try uuid-ossp as fallback
+    BEGIN
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    EXCEPTION WHEN others THEN
+        RAISE NOTICE 'UUID extensions not available.';
+    END;
+END $$;
+
+-- Create a UUID generation function that works regardless of extension
+CREATE OR REPLACE FUNCTION generate_uuid_v4()
+RETURNS UUID AS $$
+BEGIN
+    -- Try uuid_generate_v4 first (uuid-ossp)
+    RETURN uuid_generate_v4();
+EXCEPTION WHEN undefined_function THEN
+    -- Fall back to gen_random_uuid (pgcrypto)
+    RETURN gen_random_uuid();
+EXCEPTION WHEN undefined_function THEN
+    -- Last resort: manual UUID v4 generation
+    RETURN md5(random()::text || now()::text)::uuid;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ============ USERS ============
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -22,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- ============ SUBSCRIPTIONS ============
 CREATE TABLE IF NOT EXISTS subscriptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     ecpay_customer_id VARCHAR(50),
     plan VARCHAR(20) NOT NULL CHECK (plan IN ('monthly', 'yearly', 'lifetime')),
@@ -39,7 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 
 -- ============ PAYMENTS ============
 CREATE TABLE IF NOT EXISTS payments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     subscription_id UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
     ecpay_order_id VARCHAR(50),
@@ -59,7 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_payments_ecpay_order_id ON payments(ecpay_order_i
 
 -- ============ DEVICES ============
 CREATE TABLE IF NOT EXISTS devices (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     machine_id VARCHAR(255) NOT NULL,
     name VARCHAR(255),

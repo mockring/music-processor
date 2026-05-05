@@ -375,26 +375,22 @@ const ffmpegBinPath = path.join(resourcesPath, 'ffmpeg', 'bin');
 ```
 dist/
 ├── win-unpacked/                          (攜帶式資料夾)
-│   ├── YouTube Music Processor.exe
+│   ├── Music Processor.exe
 │   └── resources/
 │       ├── app.asar
 │       ├── python/                        # Python 環境
 │       └── ffmpeg/                        # FFmpeg
-└── YouTube-Music-Processor-Portable.zip   (ZIP 分發包)
+└── Music-Processor-Portable.zip           (ZIP 分發包)
 ```
 
-### 6.2 NSIS Installer (受限)
-
-- ⚠️ NSIS 為 32-bit 應用程式，無法處理 >4GB 檔案
-- 當前 Python + FFmpeg 環境合計超過 8GB，無法產生有效的 NSIS 安裝程式
-- 建議使用 ZIP 攜帶式分發
+使用 ZIP 攜帶式分發，無需安裝程式。
 
 ---
 
 ## 7. Output Location & File Naming
 
-- **Default Output Path:** `%USERPROFILE%\Music\YouTubeMusicProcessor\`
-- **Temp Path:** `%TEMP%\ytmusic_processor\`
+- **Default Output Path:** `%USERPROFILE%\Music\MusicProcessor\`
+- **Temp Path:** `%TEMP%\music_processor\`
 - **Cleanup:** 處理完成後自動刪除暫存檔，Demucs 暫存目錄也會清理
 
 ### 7.1 File Naming Convention
@@ -426,7 +422,6 @@ dist/
 
 本軟體採用線上訂閱驗證系統，結合綠界科技金流服務。
 
-- **試用期：** 1 天
 - **訂閱方案：** 月付 / 年付 / 永久授權
 - **金流：** 綠界科技（信用卡定期定額、ATM、超商）
 - **驗證：** 每次啟動時線上驗證訂閱狀態
