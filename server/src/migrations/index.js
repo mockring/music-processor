@@ -141,21 +141,31 @@ async function runMigrations() {
 
   // Create a UUID generation function that works regardless of available extension
   try {
-    await pool.query(`
+    // First check what UUID functions are available
+    let uuidFunc = 'uuid_generate_v4()';
+    try {
+      await pool.query('SELECT uuid_generate_v4()');
+    } catch (e1) {
+      uuidFunc = 'gen_random_uuid()';
+      try {
+        await pool.query('SELECT gen_random_uuid()');
+      } catch (e2) {
+        uuidFunc = 'md5(random()::text || now()::text)::uuid';
+      }
+    }
+
+    const sql = `
       CREATE OR REPLACE FUNCTION generate_uuid_v4()
       RETURNS UUID AS $$
       BEGIN
-        RETURN uuid_generate_v4();
-      EXCEPTION WHEN undefined_function THEN
-        RETURN gen_random_uuid();
-      EXCEPTION WHEN undefined_function THEN
-        RETURN md5(random()::text || now()::text)::uuid;
+        RETURN ${uuidFunc};
       END;
       $$ LANGUAGE plpgsql;
-    `);
+    `;
+    await pool.query(sql);
     console.log('✓ Created generate_uuid_v4() function');
   } catch (e) {
-    console.log('○ Could not create generate_uuid_v4() function');
+    console.log('○ Could not create generate_uuid_v4() function:', e.message);
   }
 
   for (const migration of migrations) {
