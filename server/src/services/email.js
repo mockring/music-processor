@@ -40,7 +40,77 @@ ${resetUrl}
   }
 }
 
+async function sendSerialKeyEmail(email, serialKey) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: email,
+      subject: '【音樂鈴 Music Ring】您的序號',
+      text: `
+您好，
+
+感謝您的匯款！以下是您的音樂鈴序號：
+
+${serialKey}
+
+請在軟體中輸入此序號來啟用終身使用權。
+
+如有問題，請聯繫我們。
+
+- 音樂鈴 Music Ring 團隊
+      `.trim()
+    });
+
+    if (error) {
+      console.error('Resend error:', error);
+      return false;
+    }
+
+    console.log(`Serial key email sent to ${email}, message ID: ${data?.id}`);
+    return true;
+  } catch (error) {
+    console.error('Failed to send serial key email:', error);
+    return false;
+  }
+}
+
+async function sendPaymentConfirmationEmail(email, amount) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: email,
+      subject: '【音樂鈴 Music Ring】匯款資料已收到',
+      text: `
+您好，
+
+我們已收到您的匯款資料：
+
+匯款金額：NT$ ${amount}
+
+我們會儘快確認並處理您的訂單。序號將在確認後發送至您的 Email。
+
+感謝您的購買！
+
+- 音樂鈴 Music Ring 團隊
+      `.trim()
+    });
+
+    if (error) {
+      console.error('Resend error:', error);
+      return false;
+    }
+
+    console.log(`Payment confirmation email sent to ${email}, message ID: ${data?.id}`);
+    return true;
+  } catch (error) {
+    console.error('Failed to send payment confirmation email:', error);
+    return false;
+  }
+}
+
 module.exports = {
   sendPasswordResetEmail,
+  sendSerialKeyEmail,
+  sendPaymentConfirmationEmail,
   EMAIL_FROM
 };

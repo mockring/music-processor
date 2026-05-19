@@ -21,6 +21,55 @@ const migrations = [
     `
   },
   {
+    name: 'create_serial_keys_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS serial_keys (
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
+        serial_key VARCHAR(19) UNIQUE NOT NULL,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        machine_id VARCHAR(255),
+        is_used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        activated_at TIMESTAMP WITH TIME ZONE
+      );
+      CREATE INDEX IF NOT EXISTS idx_serial_keys_serial_key ON serial_keys(serial_key);
+      CREATE INDEX IF NOT EXISTS idx_serial_keys_user_id ON serial_keys(user_id);
+      CREATE INDEX IF NOT EXISTS idx_serial_keys_machine_id ON serial_keys(machine_id);
+    `
+  },
+  {
+    name: 'create_trial_records_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS trial_records (
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
+        machine_id VARCHAR(255) NOT NULL,
+        trial_started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        trial_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_trial_records_machine_id ON trial_records(machine_id);
+    `
+  },
+  {
+    name: 'create_payment_submissions_table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS payment_submissions (
+        id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        bank_account VARCHAR(10),
+        amount INTEGER NOT NULL,
+        transfer_time TIMESTAMP WITH TIME ZONE NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        confirmed_at TIMESTAMP WITH TIME ZONE
+      );
+      CREATE INDEX IF NOT EXISTS idx_payment_submissions_user_id ON payment_submissions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_payment_submissions_status ON payment_submissions(status);
+    `
+  },
+  {
     name: 'create_subscriptions_table',
     sql: `
       CREATE TABLE IF NOT EXISTS subscriptions (

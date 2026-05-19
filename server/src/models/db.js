@@ -55,7 +55,141 @@ const UserModel = {
   }
 };
 
-// ============ SUBSCRIPTIONS ============
+// ============ SERIAL KEYS ============
+const SerialKeyModel = {
+  async create(data) {
+    const result = await pool.query(
+      `INSERT INTO serial_keys (serial_key, user_id) VALUES ($1, $2) RETURNING *`,
+      [data.serialKey, data.userId]
+    );
+    return result.rows[0];
+  },
+
+  async findBySerialKey(serialKey) {
+    const result = await pool.query(
+      `SELECT sk.*, u.email as user_email
+       FROM serial_keys sk
+       JOIN users u ON u.id = sk.user_id
+       WHERE sk.serial_key = $1`,
+      [serialKey]
+    );
+    return result.rows[0];
+  },
+
+  async findByUserId(userId) {
+    const result = await pool.query(
+      `SELECT * FROM serial_keys WHERE user_id = $1`,
+      [userId]
+    );
+    return result.rows;
+  },
+
+  async activate(serialKey, machineId) {
+    const result = await pool.query(
+      `UPDATE serial_keys SET machine_id = $2, is_used = true, activated_at = CURRENT_TIMESTAMP
+       WHERE serial_key = $1 AND is_used = false AND machine_id IS NULL
+       RETURNING *`,
+      [serialKey, machineId]
+    );
+    return result.rows[0];
+  },
+
+  async findByMachineId(machineId) {
+    const result = await pool.query(
+      `SELECT sk.*, u.email as user_email
+       FROM serial_keys sk
+       JOIN users u ON u.id = sk.user_id
+       WHERE sk.machine_id = $1 AND sk.is_used = true`,
+      [machineId]
+    );
+    return result.rows[0];
+  }
+};
+
+// ============ TRIAL RECORDS ============
+const TrialRecordModel = {
+  async create(data) {
+    const result = await pool.query(
+      `INSERT INTO trial_records (machine_id, trial_started_at, trial_expires_at, is_active)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [data.machineId, data.trialStartedAt, data.trialExpiresAt, true]
+    );
+    return result.rows[0];
+  },
+
+  async findByMachineId(machineId) {
+    const result = await pool.query(
+      `SELECT * FROM trial_records WHERE machine_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [machineId]
+    );
+    return result.rows[0];
+  },
+
+  async updateStatus(machineId, isActive) {
+    const result = await pool.query(
+      `UPDATE trial_records SET is_active = $2 WHERE machine_id = $1 RETURNING *`,
+      [machineId, isActive]
+    );
+    return result.rows[0];
+  }
+};
+
+// ============ PAYMENT SUBMISSIONS ============
+const PaymentSubmissionModel = {
+  async create(data) {
+    const result = await pool.query(
+      `INSERT INTO payment_submissions (user_id, bank_account, amount, transfer_time, status, notes)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [data.userId, data.bankAccount, data.amount, data.transferTime, 'pending', data.notes || '']
+    );
+    return result.rows[0];
+  },
+
+  async findByUserId(userId) {
+    const result = await pool.query(
+      `SELECT ps.*, sk.serial_key
+       FROM payment_submissions ps
+       LEFT JOIN serial_keys sk ON sk.user_id = ps.user_id
+       WHERE ps.user_id = $1
+       ORDER BY ps.created_at DESC`,
+      [userId]
+    );
+    return result.rows;
+  },
+
+  async findById(id) {
+    const result = await pool.query(
+      `SELECT ps.*, u.email as user_email
+       FROM payment_submissions ps
+       JOIN users u ON u.id = ps.user_id
+       WHERE ps.id = $1`,
+      [id]
+    );
+    return result.rows[0];
+  },
+
+  async findPending() {
+    const result = await pool.query(
+      `SELECT ps.*, u.email as user_email
+       FROM payment_submissions ps
+       JOIN users u ON u.id = ps.user_id
+       WHERE ps.status = 'pending'
+       ORDER BY ps.created_at ASC`
+    );
+    return result.rows;
+  },
+
+  async updateStatus(id, status, notes) {
+    const result = await pool.query(
+      `UPDATE payment_submissions SET status = $2, notes = COALESCE($3, notes), confirmed_at = CASE WHEN $2 = 'confirmed' THEN CURRENT_TIMESTAMP ELSE confirmed_at END
+       WHERE id = $1 RETURNING *`,
+      [id, status, notes]
+    );
+    return result.rows[0];
+  }
+};
+
+// ============ SUBSCRIPTIONS (legacy - kept for reference) ============
 const SubscriptionModel = {
   async create(data) {
     const result = await pool.query(
@@ -117,7 +251,7 @@ const SubscriptionModel = {
   }
 };
 
-// ============ PAYMENTS ============
+// ============ PAYMENTS (legacy) ============
 const PaymentModel = {
   async create(data) {
     const result = await pool.query(
@@ -157,7 +291,7 @@ const PaymentModel = {
   }
 };
 
-// ============ DEVICES ============
+// ============ DEVICES (legacy) ============
 const DeviceModel = {
   async create(data) {
     const result = await pool.query(
@@ -243,6 +377,9 @@ const PasswordResetTokenModel = {
 
 module.exports = {
   UserModel,
+  SerialKeyModel,
+  TrialRecordModel,
+  PaymentSubmissionModel,
   SubscriptionModel,
   PaymentModel,
   DeviceModel,
