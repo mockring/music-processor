@@ -29,7 +29,8 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    show: false
+    show: false,
+    autoHideMenuBar: true
   });
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));

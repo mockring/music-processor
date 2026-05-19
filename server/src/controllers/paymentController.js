@@ -1,5 +1,7 @@
-const { PaymentSubmissionModel } = require('../models');
-const { sendPaymentConfirmationEmail } = require('../services/email');
+const { PaymentSubmissionModel, UserModel } = require('../models');
+
+// Rate limiter flag to suppress user enumeration
+let submissionInProgress = new Map();
 
 const PaymentController = {
   // Submit payment information
@@ -15,6 +17,18 @@ const PaymentController = {
         });
       }
 
+      // Sanitize email - remove dangerous characters
+      const sanitizedEmail = String(email).replace(/[<>'"&\r\n\t]/g, '').trim().toLowerCase();
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(sanitizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_EMAIL', message: '無效的 Email 格式' }
+        });
+      }
+
       // Validate accountLast5 is 5 digits
       if (!/^\d{5}$/.test(accountLast5)) {
         return res.status(400).json({
@@ -25,7 +39,7 @@ const PaymentController = {
 
       // Validate amount
       const amountNum = parseFloat(amount);
-      if (isNaN(amountNum) || amountNum <= 0) {
+      if (isNaN(amountNum) || amountNum <= 0 || amountNum > 999999) {
         return res.status(400).json({
           success: false,
           error: { code: 'INVALID_AMOUNT', message: '無效的匯款金額' }
@@ -34,17 +48,28 @@ const PaymentController = {
 
       // Validate transferTime
       const transferDate = new Date(transferTime);
-      if (isNaN(transferDate.getTime())) {
+      if (isNaN(transferDate.getTime()) || transferDate > new Date()) {
         return res.status(400).json({
           success: false,
           error: { code: 'INVALID_TRANSFER_TIME', message: '無效的匯款時間' }
         });
       }
 
-      // Try to find user by email (optional - payment can be submitted without account)
+      // Rate limit per email to prevent enumeration
+      const now = Date.now();
+      const lastSubmission = submissionInProgress.get(sanitizedEmail);
+      if (lastSubmission && now - lastSubmission < 60000) { // 1 minute cooldown
+        return res.status(429).json({
+          success: false,
+          error: { code: 'RATE_LIMITED', message: '請稍後再試' }
+        });
+      }
+      submissionInProgress.set(sanitizedEmail, now);
+
+      // Try to find user by email (optional - don't reveal if exists)
       let userId = null;
       try {
-        const user = await UserModel.findByEmail(email);
+        const user = await UserModel.findByEmail(sanitizedEmail);
         if (user) {
           userId = user.id;
         }
@@ -58,9 +83,10 @@ const PaymentController = {
         bankAccount: accountLast5,
         amount: amountNum,
         transferTime: transferDate,
-        notes: `Email: ${email}`
+        notes: `Email: ${sanitizedEmail}`
       });
 
+      // Always return same message to prevent email enumeration
       res.json({
         success: true,
         data: {

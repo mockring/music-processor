@@ -14,6 +14,7 @@ const migrations = [
         id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
@@ -21,11 +22,18 @@ const migrations = [
     `
   },
   {
+    name: 'add_role_to_users',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
+      ALTER TABLE users ADD CONSTRAINT chk_role CHECK (role IN ('user', 'admin'));
+    `
+  },
+  {
     name: 'create_serial_keys_table',
     sql: `
       CREATE TABLE IF NOT EXISTS serial_keys (
         id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
-        serial_key VARCHAR(19) UNIQUE NOT NULL,
+        serial_key VARCHAR(35) UNIQUE NOT NULL,
         user_id UUID REFERENCES users(id) ON DELETE SET NULL,
         machine_id VARCHAR(255),
         is_used BOOLEAN DEFAULT FALSE,

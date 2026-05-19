@@ -20,7 +20,8 @@ function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, config.jwt.secret);
     req.user = {
       userId: decoded.userId,
-      email: decoded.email
+      email: decoded.email,
+      role: decoded.role || 'user' // Default to 'user' role
     };
     next();
   } catch (error) {
@@ -43,4 +44,17 @@ function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = authMiddleware;
+function adminOnly(req, res, next) {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: '需要管理員權限'
+      }
+    });
+  }
+  next();
+}
+
+module.exports = { authMiddleware, adminOnly };

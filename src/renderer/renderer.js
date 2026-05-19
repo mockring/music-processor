@@ -368,7 +368,7 @@ async function updateAuthUI() {
 async function checkSubscription() {
   try {
     const result = await window.api.authCheckSubscription();
-    currentSubscription = result;
+    currentSubscription = result.success && result.data ? result.data : { valid: false };
     updateSubscriptionUI();
     updateProcessButton();
   } catch (e) {
@@ -464,12 +464,13 @@ authLoginBtn.addEventListener('click', async () => {
         await window.api.authClearRememberedEmail();
       }
     } else {
-      alert(result.error?.message || '登入失敗');
+      updateLog('登入失敗: ' + (result.error?.message || '未知錯誤'));
+      authPasswordInput.value = '';
     }
   } catch (e) {
     updateLog('登入錯誤: ' + e.message);
     console.error('Login error details:', e);
-    alert('登入失敗: ' + e.message + '\n\n詳細資訊：\n' + (e.stack || e.description || '無'));
+    authPasswordInput.value = '';
   }
 
   authLoginBtn.disabled = false;

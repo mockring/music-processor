@@ -53,6 +53,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "LICENSE.md",
+        "to": "LICENSE.md",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asar": true,

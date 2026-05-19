@@ -48,15 +48,16 @@ const AuthController = {
       // Hash password
       const passwordHash = await bcrypt.hash(password, 12);
 
-      // Create user
+      // Create user with default 'user' role
       const user = await UserModel.create({
         email,
-        passwordHash
+        passwordHash,
+        role: 'user' // Default role
       });
 
-      // Generate token
+      // Generate token with role
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, role: 'user' },
         config.jwt.secret,
         { expiresIn: config.jwt.expiry }
       );
@@ -129,10 +130,10 @@ const AuthController = {
         throw subError;
       }
 
-      // Generate token
+      // Generate token with role
       console.log('Generating token...');
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, role: user.role || 'user' },
         config.jwt.secret,
         { expiresIn: config.jwt.expiry }
       );
@@ -180,13 +181,14 @@ const AuthController = {
         data: {
           id: user.id,
           email: user.email,
+          role: user.role || 'user',
           subscription: subscription ? {
             status: subscription.status,
             plan: subscription.plan,
             expiresAt: subscription.currentPeriodEnd,
             cancelAtPeriodEnd: subscription.cancelAtPeriodEnd
           } : null,
-          createdAt: user.createdAt
+          createdAt: user.created_at
         }
       });
     } catch (error) {

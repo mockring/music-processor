@@ -3,11 +3,11 @@ const { SerialKeyModel, UserModel } = require('../models');
 
 const SerialController = {
   // Generate a new serial key for a user
+  // Format: XXXX-XXXX-XXXX-XXXX (each segment is 4 bytes = 32 bits, total 128 bits entropy)
   async generate(data) {
-    // Generate format: XXXX-XXXX-XXXX-XXXX
     const segments = [];
     for (let i = 0; i < 4; i++) {
-      const segment = crypto.randomBytes(2).toString('hex').toUpperCase();
+      const segment = crypto.randomBytes(4).toString('hex').toUpperCase();
       segments.push(segment);
     }
     return segments.join('-');
