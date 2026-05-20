@@ -8,15 +8,15 @@ const { AudioProcessor } = require('./modules/audioProcessor');
 const { DemucsRunner } = require('./modules/demucsRunner');
 const { FileManager } = require('./modules/fileManager');
 const { AudioConverter } = require('./modules/audioConverter');
-const { LicenseManager } = require('./modules/licenseManager');
-const { AuthManager } = require('./modules/authManager');
+const { SoftwareLicenseManager } = require('./modules/softwareLicenseManager');
+const axios = require('axios');
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
 
 let mainWindow;
-let licenseManager;
-let authManager;
+let softwareLicenseManager;
+let apiBaseUrl = process.env.API_URL || 'https://music-processor-server.onrender.com/v1';
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -269,115 +269,98 @@ ipcMain.handle('open-license-file', async () => {
 });
 
 ipcMain.handle('get-license-status', async () => {
-  if (!licenseManager) {
-    licenseManager = new LicenseManager();
+  if (!softwareLicenseManager) {
+    softwareLicenseManager = new SoftwareLicenseManager();
   }
-  return licenseManager.checkLicense();
+
+  return new Promise(async (resolve) => {
+    const result = await softwareLicenseManager.getLicenseStatus(
+      // apiTrialStatusFn - check trial status with backend
+      async () => {
+        try {
+          const response = await axios.get(`${apiBaseUrl}/trial/status`, {
+            params: { machineId: softwareLicenseManager.getMachineIdSync() }
+          });
+          return response.data;
+        } catch (e) {
+          return { success: false, error: { message: e.response?.data?.error?.message || e.message } };
+        }
+      },
+      // apiSerialActivateFn - check serial activation with backend
+      async (serialKey, machineId) => {
+        try {
+          const response = await axios.post(`${apiBaseUrl}/serial/activate`, {
+            serialKey,
+            machineId
+          });
+          return response.data;
+        } catch (e) {
+          return { success: false, error: { message: e.response?.data?.error?.message || e.message } };
+        }
+      }
+    );
+    resolve(result);
+  });
 });
 
-ipcMain.handle('activate-license', async (event, key) => {
-  if (!licenseManager) {
-    licenseManager = new LicenseManager();
+ipcMain.handle('get-machine-id', async () => {
+  if (!softwareLicenseManager) {
+    softwareLicenseManager = new SoftwareLicenseManager();
   }
-  return licenseManager.activate(key);
+  return softwareLicenseManager.getMachineIdSync();
+});
+
+ipcMain.handle('activate-license', async (event, serialKey) => {
+  if (!softwareLicenseManager) {
+    softwareLicenseManager = new SoftwareLicenseManager();
+  }
+
+  return softwareLicenseManager.activate(
+    serialKey,
+    async (serialKey, machineId) => {
+      try {
+        const response = await axios.post(`${apiBaseUrl}/serial/activate`, {
+          serialKey,
+          machineId
+        });
+        return response.data;
+      } catch (e) {
+        return { success: false, error: { message: e.response?.data?.error?.message || e.message } };
+      }
+    }
+  );
 });
 
 ipcMain.handle('deactivate-license', async () => {
-  if (!licenseManager) {
-    licenseManager = new LicenseManager();
+  if (!softwareLicenseManager) {
+    softwareLicenseManager = new SoftwareLicenseManager();
   }
-  return licenseManager.deactivate();
+  return softwareLicenseManager.deactivate();
 });
 
-// Auth IPC handlers
-ipcMain.handle('auth-login', async (event, email, password) => {
-  log.info('IPC auth-login received:', email);
-  try {
-    if (!authManager) {
-      authManager = new AuthManager();
+ipcMain.handle('start-trial', async () => {
+  if (!softwareLicenseManager) {
+    softwareLicenseManager = new SoftwareLicenseManager();
+  }
+
+  return softwareLicenseManager.startTrial(
+    // apiStartFn - start trial with backend
+    async () => {
+      try {
+        const response = await axios.post(`${apiBaseUrl}/trial/start`, {
+          machineId: softwareLicenseManager.getMachineIdSync()
+        });
+        return response.data;
+      } catch (e) {
+        return { success: false, error: { message: e.response?.data?.error?.message || e.message } };
+      }
     }
-    const result = await authManager.login(email, password);
-    log.info('auth-login result:', JSON.stringify(result));
-    return result;
-  } catch (e) {
-    log.error('auth-login exception:', e);
-    return { success: false, error: { message: e.message, stack: e.stack } };
-  }
+  );
 });
 
-ipcMain.handle('auth-register', async (event, email, password) => {
-  if (!authManager) {
-    authManager = new AuthManager();
+ipcMain.handle('get-trial-status', async () => {
+  if (!softwareLicenseManager) {
+    softwareLicenseManager = new SoftwareLicenseManager();
   }
-  return authManager.register(email, password);
-});
-
-ipcMain.handle('auth-logout', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.logout();
-});
-
-ipcMain.handle('auth-get-user', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.getUser();
-});
-
-ipcMain.handle('auth-is-logged-in', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.isLoggedIn();
-});
-
-ipcMain.handle('auth-check-subscription', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.checkSubscription();
-});
-
-ipcMain.handle('auth-get-subscription-plans', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.getSubscriptionPlans();
-});
-
-ipcMain.handle('auth-get-devices', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.getDevices();
-});
-
-ipcMain.handle('auth-remove-device', async (event, deviceId) => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.removeDevice(deviceId);
-});
-
-ipcMain.handle('auth-save-remembered-email', async (event, email) => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.saveRememberedEmail(email);
-});
-
-ipcMain.handle('auth-get-remembered-email', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.getRememberedEmail();
-});
-
-ipcMain.handle('auth-clear-remembered-email', async () => {
-  if (!authManager) {
-    authManager = new AuthManager();
-  }
-  return authManager.clearRememberedEmail();
+  return softwareLicenseManager.checkTrialStatus();
 });

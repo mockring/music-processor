@@ -17,22 +17,9 @@
           <span class="version">v1.0.0</span>
         </div>
       </div>
-      <div class="auth-section" id="auth-section">
-        <div class="auth-form" id="auth-form">
-          <input type="email" id="auth-email" placeholder="電子郵件" />
-          <input type="password" id="auth-password" placeholder="密碼" />
-          <label class="remember-email">
-            <input type="checkbox" id="auth-remember-email" />
-            <span>記住帳號</span>
-          </label>
-          <button id="auth-login-btn" class="btn btn-small">登入</button>
-          <button id="auth-register-btn" class="btn btn-small btn-secondary">註冊</button>
-        </div>
-        <div class="auth-user hidden" id="auth-user">
-          <span id="auth-user-email"></span>
-          <span id="auth-subscription-status"></span>
-          <button id="auth-logout-btn" class="btn btn-small">登出</button>
-        </div>
+      <div class="license-status-bar" id="license-status-bar">
+        <span class="status-icon" id="header-status-icon">&#128274;</span>
+        <span class="status-text" id="header-status-text">授權狀態</span>
       </div>
     </header>
 
@@ -93,7 +80,7 @@
               <label for="vocal-toggle" class="toggle-label">
                 <span class="toggle-slider"></span>
               </label>
-              <span id="vocal-status" class="vocal-status">關閉</span>
+              <span id="vocal-status" class="vocal-status">開啟</span>
             </div>
             <p class="card-hint">移除人聲，生成純音樂版本</p>
           </div>
@@ -191,6 +178,7 @@
       </div>
     </section>
 
+    <!-- License / Serial Key Section -->
     <section class="license-section">
       <div class="license-card">
         <div class="license-header">
@@ -198,41 +186,36 @@
             <span class="license-icon" id="license-icon">&#128274;</span>
             <div class="license-info">
               <span class="license-title" id="license-title">授權狀態</span>
-              <span class="license-desc" id="license-desc">未登入</span>
+              <span class="license-desc" id="license-desc">未啟用</span>
             </div>
           </div>
-          <button id="license-toggle-btn" class="btn btn-small">訂閱方案</button>
+          <button id="license-toggle-btn" class="btn btn-small">啟用</button>
         </div>
-        <div class="license-form hidden" id="license-form">
-          <div class="subscription-plans" id="subscription-plans">
-            <div class="plan-item" data-plan="monthly">
-              <span class="plan-name">月付</span>
-              <div class="plan-price-wrapper">
-                <span class="plan-price-discount">NT$150/月</span>
-                <span class="plan-price-original">NT$250/月</span>
-              </div>
-              <button class="btn btn-small btn-subscribe">訂閱</button>
+
+        <!-- Serial Key Activation Form (Hidden by default) -->
+        <div class="serial-form hidden" id="serial-form">
+          <div class="serial-section" id="serial-section">
+            <p class="serial-instruction">請輸入您的序號來啟用終身使用權</p>
+            <div class="serial-input-row">
+              <input type="text" id="serial-input" placeholder="XXXX-XXXX-XXXX-XXXX" />
+              <button id="serial-activate-btn" class="btn btn-small">啟用</button>
             </div>
-            <div class="plan-item" data-plan="yearly">
-              <span class="plan-name">年付</span>
-              <div class="plan-price-wrapper">
-                <span class="plan-price-discount">NT$1200/年</span>
-                <span class="plan-price-original">NT$2700/年</span>
-              </div>
-              <button class="btn btn-small btn-subscribe">訂閱</button>
-            </div>
-            <div class="plan-item" data-plan="lifetime">
-              <span class="plan-name">永久</span>
-              <div class="plan-price-wrapper">
-                <span class="plan-price-discount">NT$3200</span>
-                <span class="plan-price-original">NT$8000</span>
-              </div>
-              <button class="btn btn-small btn-subscribe">訂閱</button>
-            </div>
+            <p class="serial-error hidden" id="serial-error"></p>
           </div>
-          <div class="devices-section" id="devices-section">
-            <h4>已註冊的裝置</h4>
-            <div id="devices-list"></div>
+
+          <div class="trial-section" id="trial-section">
+            <p class="trial-instruction">或先免費試用 1 小時</p>
+            <button id="trial-start-btn" class="btn btn-secondary btn-block">開始試用</button>
+          </div>
+
+          <div class="activation-success hidden" id="activation-success">
+            <span class="success-icon">&#9989;</span>
+            <p>序號啟用成功！</p>
+            <p class="activated-serial" id="activated-serial"></p>
+          </div>
+
+          <div class="deactivate-section hidden" id="deactivate-section">
+            <button id="deactivate-btn" class="btn btn-small btn-danger">取消授權</button>
           </div>
         </div>
       </div>

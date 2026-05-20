@@ -679,28 +679,51 @@ musictool/
 
 - [x] 軟體基本功能（URL下載、本地檔案處理、音高調整、人聲消除、多軌輸出）
 - [x] 打包攜帶式版本
-- [x] 網站上線 (GitHub Pages)
+- [x] 網站上線 (Vercel + Next.js)
 - [x] 終身方案定價 NT$300 (原價 NT$1000)
 - [x] 登入驗證 bug 修復
 - [x] 移除網站「AI」文字，改為「音樂鈴 Music Ring」
+- [x] Server: 試用期 API (`/trial/*`)
+- [x] Server: 序號 API (`/serial/*`)
+- [x] Server: 匯款資料 API (`/payment/*`)
+- [x] Server: 管理後台 (`/admin/*`)
+- [x] Server: Email 寄送服務 (Resend)
+- [x] Server: 資安修補 (RBAC, Rate Limiting, Email枚舉防護)
+- [x] 網站: 會員登入/註冊頁面
+- [x] 網站: 匯款資訊頁面
+- [x] 網站: 匯款回報頁面
+- [x] 資料庫: 建立新資料表 (serial_keys, trial_records, payment_submissions)
+- [x] 前端 API proxy 完整
+
+### 已實作
+
+- [x] 軟體基本功能（URL下載、本地檔案處理、音高調整、人聲消除、多軌輸出）
+- [x] 打包攜帶式版本
+- [x] 網站上線 (Vercel + Next.js)
+- [x] 終身方案定價 NT$300 (原價 NT$1000)
+- [x] 登入驗證 bug 修復
+- [x] 移除網站「AI」文字，改為「音樂鈴 Music Ring」
+- [x] Server: 試用期 API (`/trial/*`)
+- [x] Server: 序號 API (`/serial/*`)
+- [x] Server: 匯款資料 API (`/payment/*`)
+- [x] Server: 管理後台 (`/admin/*`)
+- [x] Server: Email 寄送服務 (Resend)
+- [x] Server: 資安修補 (RBAC, Rate Limiting, Email枚舉防護)
+- [x] 網站: 會員登入/註冊頁面
+- [x] 網站: 匯款資訊頁面
+- [x] 網站: 匯款回報頁面
+- [x] 資料庫: 建立新資料表 (serial_keys, trial_records, payment_submissions)
+- [x] 前端 API proxy 完整
+- [x] 軟體: 移除登入/註冊 UI
+- [x] 軟體: 新增序號啟用 UI
+- [x] 軟體: 新增試用期功能
+- [x] 軟體: 本地序號儲存
+- [x] 軟體: 試用期安全性 (刪除 trial_record.json 無法重置試用期)
 
 ### 待實作
 
-- [ ] Server: 試用期 API (`/trial/*`)
-- [ ] Server: 序號 API (`/serial/*`)
-- [ ] Server: 匯款資料 API (`/payment/*`)
-- [ ] Server: 管理後台 (`/admin/*`)
-- [ ] Server: Email 寄送服務 (Gmail SMTP)
-- [ ] Server: 移除舊有訂閱相關 API
-- [ ] 軟體: 移除登入/註冊 UI
-- [ ] 軟體: 新增序號啟用 UI
-- [ ] 軟體: 新增試用期功能
-- [ ] 軟體: 本地序號儲存
-- [ ] 資料庫: 建立新資料表 (serial_keys, trial_records, payment_submissions)
-- [ ] 資料庫: 移除舊資料表 (subscriptions, payments, devices)
-- [ ] 網站: 新增會員登入/註冊頁面
-- [ ] 網站: 新增匯款資訊頁面
-- [ ] 網站: 新增匯款回報頁面
+- [ ] 資料庫: 移除舊資料表 (subscriptions, payments, devices)（可保留但不使用）
+- [ ] 管理後台 UI（目前需透過 API 直接操作資料庫）
 
 ---
 
