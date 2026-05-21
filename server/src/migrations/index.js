@@ -14,6 +14,7 @@ const migrations = [
         id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        name VARCHAR(100),
         role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -65,8 +66,9 @@ const migrations = [
       CREATE TABLE IF NOT EXISTS payment_submissions (
         id UUID PRIMARY KEY DEFAULT generate_uuid_v4(),
         user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        user_email VARCHAR(255) NOT NULL,
         bank_account VARCHAR(10),
-        amount INTEGER NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
         transfer_time TIMESTAMP WITH TIME ZONE NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled')),
         notes TEXT,
@@ -152,6 +154,19 @@ const migrations = [
       CREATE TRIGGER update_subscriptions_updated_at
         BEFORE UPDATE ON subscriptions
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    `
+  },
+  {
+    name: 'add_user_email_to_payment_submissions',
+    sql: `
+      ALTER TABLE payment_submissions ADD COLUMN IF NOT EXISTS user_email VARCHAR(255) NOT NULL DEFAULT '';
+      ALTER TABLE payment_submissions ALTER COLUMN user_email DROP DEFAULT;
+    `
+  },
+  {
+    name: 'add_name_to_users',
+    sql: `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100);
     `
   },
   {

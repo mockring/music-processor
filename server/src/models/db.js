@@ -18,15 +18,15 @@ const UserModel = {
   async create(data) {
     const role = data.role || 'user';
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING *`,
-      [data.email.toLowerCase(), data.passwordHash, role]
+      `INSERT INTO users (email, password_hash, role, name) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [data.email.toLowerCase(), data.passwordHash, role, data.name || null]
     );
     return result.rows[0];
   },
 
   async findByEmail(email) {
     const result = await pool.query(
-      `SELECT id, email, password_hash, role, created_at FROM users WHERE email = $1`,
+      `SELECT id, email, password_hash, role, name, created_at FROM users WHERE email = $1`,
       [email.toLowerCase()]
     );
     const row = result.rows[0];
@@ -36,6 +36,7 @@ const UserModel = {
       email: row.email,
       passwordHash: row.password_hash,
       role: row.role,
+      name: row.name,
       createdAt: row.created_at
     };
   },
@@ -50,8 +51,12 @@ const UserModel = {
 
   async update(id, data) {
     const result = await pool.query(
-      `UPDATE users SET email = COALESCE($2, email), password_hash = COALESCE($3, password_hash) WHERE id = $1 RETURNING *`,
-      [id, data.email, data.passwordHash]
+      `UPDATE users SET
+        email = COALESCE($2, email),
+        password_hash = COALESCE($3, password_hash),
+        name = COALESCE($4, name)
+       WHERE id = $1 RETURNING *`,
+      [id, data.email, data.passwordHash, data.name]
     );
     return result.rows[0];
   }

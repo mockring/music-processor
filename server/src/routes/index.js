@@ -41,6 +41,8 @@ router.post('/auth/register', authLimiter, AuthController.register);
 router.post('/auth/login', authLimiter, AuthController.login);
 router.post('/auth/logout', authMiddleware, AuthController.logout);
 router.get('/auth/me', authMiddleware, AuthController.me);
+router.post('/auth/update-profile', authMiddleware, AuthController.updateProfile);
+router.post('/auth/change-password', authMiddleware, AuthController.changePassword);
 router.post('/auth/forgot-password', authLimiter, AuthController.forgotPassword);
 router.post('/auth/reset-password', authLimiter, AuthController.resetPassword);
 

@@ -9,7 +9,7 @@ const AuthController = {
   // Register
   async register(req, res) {
     try {
-      const { email, password } = req.body;
+      const { email, name, password } = req.body;
 
       // Validate
       if (!email || !password) {
@@ -29,10 +29,10 @@ const AuthController = {
       }
 
       // Password length
-      if (password.length < 8) {
+      if (password.length < 6) {
         return res.status(400).json({
           success: false,
-          error: { code: 'PASSWORD_TOO_SHORT', message: '密碼至少需要 8 個字元' }
+          error: { code: 'PASSWORD_TOO_SHORT', message: '密碼至少需要 6 個字元' }
         });
       }
 
@@ -51,6 +51,7 @@ const AuthController = {
       // Create user with default 'user' role
       const user = await UserModel.create({
         email,
+        name: name || null,
         passwordHash,
         role: 'user' // Default role
       });
@@ -68,6 +69,7 @@ const AuthController = {
           user: {
             id: user.id,
             email: user.email,
+            name: user.name,
             createdAt: user.createdAt
           },
           token
@@ -257,6 +259,105 @@ const AuthController = {
       res.status(500).json({
         success: false,
         error: { code: 'INTERNAL_ERROR', message: '處理請求失敗' }
+      });
+    }
+  },
+
+  // Update profile
+  async updateProfile(req, res) {
+    try {
+      const userId = req.user.userId;
+      const { email, name } = req.body;
+
+      if (!email && !name) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'MISSING_FIELDS', message: '請提供要更新的資料' }
+        });
+      }
+
+      // Check if email is being changed and already exists
+      if (email) {
+        const existing = await UserModel.findByEmail(email);
+        if (existing && String(existing.id) !== String(userId)) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'EMAIL_EXISTS', message: '此 Email 已被使用' }
+          });
+        }
+      }
+
+      // Update user
+      const updateData = {};
+      if (email) updateData.email = email;
+      if (name) updateData.name = name;
+
+      await UserModel.update(userId, updateData);
+
+      res.json({
+        success: true,
+        message: '資料已更新'
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: '更新失敗' }
+      });
+    }
+  },
+
+  // Change password
+  async changePassword(req, res) {
+    try {
+      const userId = req.user.userId;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'MISSING_FIELDS', message: '請填寫所有欄位' }
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'PASSWORD_TOO_SHORT', message: '密碼至少需要 6 個字元' }
+        });
+      }
+
+      // Get current user
+      const user = await UserModel.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: '找不到使用者' }
+        });
+      }
+
+      // Verify current password
+      const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({
+          success: false,
+          error: { code: 'INVALID_PASSWORD', message: '目前密碼錯誤' }
+        });
+      }
+
+      // Hash and update new password
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await UserModel.update(userId, { passwordHash });
+
+      res.json({
+        success: true,
+        message: '密碼已更新'
+      });
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: '更新失敗' }
       });
     }
   },
