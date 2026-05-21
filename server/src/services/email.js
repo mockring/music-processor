@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 const config = require('../config');
 
-// Create Gmail SMTP transporter with proper settings
+// Create Gmail SMTP transporter
 let transporter = null;
 
 function createTransporter() {
@@ -10,20 +10,20 @@ function createTransporter() {
     return null;
   }
 
+  // Try port 465 (SSL) first, fallback to port 587 (TLS)
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // STARTTLS
-    requireTLS: true,
-    tls: {
-      rejectUnauthorized: true
-    },
+    port: 465,
+    secure: true, // SSL
     auth: {
       user: config.gmail.user,
       pass: config.gmail.appPassword
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000
+    tls: {
+      rejectUnauthorized: true
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000
   });
 }
 
@@ -67,6 +67,8 @@ ${resetUrl}
     console.error('Failed to send password reset email:', error.message);
     if (error.code === 'EAUTH') {
       console.error('Gmail authentication failed. Check GMAIL_USER and GMAIL_APP_PASSWORD');
+    } else if (error.code === 'ECONNREFUSED') {
+      console.error('Connection refused. Gmail SMTP may be blocked by the hosting provider.');
     }
     return false;
   }
