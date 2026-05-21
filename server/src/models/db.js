@@ -43,10 +43,19 @@ const UserModel = {
 
   async findById(id) {
     const result = await pool.query(
-      `SELECT * FROM users WHERE id = $1`,
+      `SELECT id, email, password_hash, role, name, created_at FROM users WHERE id = $1`,
       [id]
     );
-    return result.rows[0];
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      passwordHash: row.password_hash,
+      role: row.role,
+      name: row.name,
+      createdAt: row.created_at
+    };
   },
 
   async update(id, data) {
