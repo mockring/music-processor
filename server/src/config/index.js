@@ -59,6 +59,12 @@ module.exports = {
   // Device limits
   maxDevicesPerUser: 3,
 
+  // Gmail SMTP
+  gmail: {
+    user: process.env.GMAIL_USER || '',
+    appPassword: process.env.GMAIL_APP_PASSWORD || ''
+  },
+
   // Frontend URL
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3001'
 };

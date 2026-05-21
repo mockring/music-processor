@@ -1,17 +1,28 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
+const config = require('../config');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Create Gmail SMTP transporter
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // TLS
+  auth: {
+    user: config.gmail.user,
+    pass: config.gmail.appPassword
+  }
+});
 
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Music Processor <onboarding@resend.dev>';
+// Default from address
+const EMAIL_FROM = config.gmail.user || 'noreply@gmail.com';
 
 async function sendPasswordResetEmail(email, token) {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}`;
+  const resetUrl = `${config.frontendUrl}/reset-password?token=${token}`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const info = await transporter.sendMail({
       from: EMAIL_FROM,
       to: email,
-      subject: '【Music Processor】密碼重置連結',
+      subject: '【Music Ring】密碼重置連結',
       text: `
 您好，
 
@@ -23,16 +34,11 @@ ${resetUrl}
 
 如果您沒有申請密碼重置，請忽略此郵件。
 
-- Music Processor 團隊
-      `.trim()
+- Music Ring 團隊
+    `.trim()
     });
 
-    if (error) {
-      console.error('Resend error:', error);
-      return false;
-    }
-
-    console.log(`Password reset email sent to ${email}, message ID: ${data?.id}`);
+    console.log(`Password reset email sent to ${email}, message ID: ${info.messageId}`);
     return true;
   } catch (error) {
     console.error('Failed to send password reset email:', error);
@@ -42,10 +48,10 @@ ${resetUrl}
 
 async function sendSerialKeyEmail(email, serialKey) {
   try {
-    const { data, error } = await resend.emails.send({
+    const info = await transporter.sendMail({
       from: EMAIL_FROM,
       to: email,
-      subject: '【音樂鈴 Music Ring】您的序號',
+      subject: '【Music Ring】您的序號',
       text: `
 您好，
 
@@ -57,16 +63,11 @@ ${serialKey}
 
 如有問題，請聯繫我們。
 
-- 音樂鈴 Music Ring 團隊
-      `.trim()
+- Music Ring 團隊
+    `.trim()
     });
 
-    if (error) {
-      console.error('Resend error:', error);
-      return false;
-    }
-
-    console.log(`Serial key email sent to ${email}, message ID: ${data?.id}`);
+    console.log(`Serial key email sent to ${email}, message ID: ${info.messageId}`);
     return true;
   } catch (error) {
     console.error('Failed to send serial key email:', error);
@@ -76,10 +77,10 @@ ${serialKey}
 
 async function sendPaymentConfirmationEmail(email, amount) {
   try {
-    const { data, error } = await resend.emails.send({
+    const info = await transporter.sendMail({
       from: EMAIL_FROM,
       to: email,
-      subject: '【音樂鈴 Music Ring】匯款資料已收到',
+      subject: '【Music Ring】匯款資料已收到',
       text: `
 您好，
 
@@ -91,16 +92,11 @@ async function sendPaymentConfirmationEmail(email, amount) {
 
 感謝您的購買！
 
-- 音樂鈴 Music Ring 團隊
-      `.trim()
+- Music Ring 團隊
+    `.trim()
     });
 
-    if (error) {
-      console.error('Resend error:', error);
-      return false;
-    }
-
-    console.log(`Payment confirmation email sent to ${email}, message ID: ${data?.id}`);
+    console.log(`Payment confirmation email sent to ${email}, message ID: ${info.messageId}`);
     return true;
   } catch (error) {
     console.error('Failed to send payment confirmation email:', error);
