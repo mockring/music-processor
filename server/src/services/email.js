@@ -1,21 +1,44 @@
 const nodemailer = require('nodemailer');
 const config = require('../config');
 
-// Create Gmail SMTP transporter
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // TLS
-  auth: {
-    user: config.gmail.user,
-    pass: config.gmail.appPassword
+// Create Gmail SMTP transporter with proper settings
+let transporter = null;
+
+function createTransporter() {
+  if (!config.gmail.user || !config.gmail.appPassword) {
+    console.error('Gmail SMTP: Missing GMAIL_USER or GMAIL_APP_PASSWORD environment variables');
+    return null;
   }
-});
+
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // STARTTLS
+    requireTLS: true,
+    tls: {
+      rejectUnauthorized: true
+    },
+    auth: {
+      user: config.gmail.user,
+      pass: config.gmail.appPassword
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000
+  });
+}
+
+// Initialize transporter
+transporter = createTransporter();
 
 // Default from address
 const EMAIL_FROM = config.gmail.user || 'noreply@gmail.com';
 
 async function sendPasswordResetEmail(email, token) {
+  if (!transporter) {
+    console.error('Gmail SMTP: Transporter not initialized');
+    return false;
+  }
+
   const resetUrl = `${config.frontendUrl}/reset-password?token=${token}`;
 
   try {
@@ -41,12 +64,20 @@ ${resetUrl}
     console.log(`Password reset email sent to ${email}, message ID: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error('Failed to send password reset email:', error);
+    console.error('Failed to send password reset email:', error.message);
+    if (error.code === 'EAUTH') {
+      console.error('Gmail authentication failed. Check GMAIL_USER and GMAIL_APP_PASSWORD');
+    }
     return false;
   }
 }
 
 async function sendSerialKeyEmail(email, serialKey) {
+  if (!transporter) {
+    console.error('Gmail SMTP: Transporter not initialized');
+    return false;
+  }
+
   try {
     const info = await transporter.sendMail({
       from: EMAIL_FROM,
@@ -70,12 +101,17 @@ ${serialKey}
     console.log(`Serial key email sent to ${email}, message ID: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error('Failed to send serial key email:', error);
+    console.error('Failed to send serial key email:', error.message);
     return false;
   }
 }
 
 async function sendPaymentConfirmationEmail(email, amount) {
+  if (!transporter) {
+    console.error('Gmail SMTP: Transporter not initialized');
+    return false;
+  }
+
   try {
     const info = await transporter.sendMail({
       from: EMAIL_FROM,
@@ -99,7 +135,7 @@ async function sendPaymentConfirmationEmail(email, amount) {
     console.log(`Payment confirmation email sent to ${email}, message ID: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error('Failed to send payment confirmation email:', error);
+    console.error('Failed to send payment confirmation email:', error.message);
     return false;
   }
 }
