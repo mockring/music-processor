@@ -21,8 +21,6 @@ const outputFolderPath = document.getElementById('output-folder-path');
 const selectFolderBtn = document.getElementById('select-folder-btn');
 
 // License elements
-const headerStatusIcon = document.getElementById('header-status-icon');
-const headerStatusText = document.getElementById('header-status-text');
 const licenseToggleBtn = document.getElementById('license-toggle-btn');
 const licenseIcon = document.getElementById('license-icon');
 const licenseDesc = document.getElementById('license-desc');
@@ -110,8 +108,6 @@ function updateLicenseUI() {
   if (!currentLicense) {
     licenseIcon.innerHTML = '&#128274;';
     licenseDesc.textContent = '載入中...';
-    headerStatusIcon.innerHTML = '&#128274;';
-    headerStatusText.textContent = '載入中...';
     return;
   }
 
@@ -119,21 +115,18 @@ function updateLicenseUI() {
     licenseIcon.innerHTML = '&#128275;';
     licenseDesc.textContent = '已啟用序號';
     licenseDesc.className = 'license-desc activated';
-    headerStatusIcon.innerHTML = '&#128275;';
-    headerStatusText.textContent = '已啟用';
   } else if (currentLicense.mode === 'trial') {
-    const remaining = formatTimeRemaining(currentLicense.remainingTime);
+    const expiresDate = new Date(currentLicense.expiresAt);
+    const hours = expiresDate.getHours().toString().padStart(2, '0');
+    const minutes = expiresDate.getMinutes().toString().padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
     licenseIcon.innerHTML = '&#128275;';
-    licenseDesc.textContent = `試用中 (${remaining})`;
+    licenseDesc.textContent = `試用期 | 截止時間 : ${timeStr}`;
     licenseDesc.className = 'license-desc trial';
-    headerStatusIcon.innerHTML = '&#128275;';
-    headerStatusText.textContent = `試用中 (${remaining})`;
   } else {
     licenseIcon.innerHTML = '&#128274;';
     licenseDesc.textContent = currentLicense.error || '未啟用';
     licenseDesc.className = 'license-desc expired';
-    headerStatusIcon.innerHTML = '&#128274;';
-    headerStatusText.textContent = '未啟用';
   }
 
   updateProcessButton();
@@ -423,7 +416,7 @@ trialStartBtn.addEventListener('click', async () => {
     if (result.success) {
       updateLog('試用期已開始 (1小時)');
       await checkLicense();
-      licenseForm.classList.add('hidden');
+      serialForm.classList.add('hidden');
       licenseToggleBtn.textContent = '啟用';
     } else {
       updateLog('試用期啟動失敗: ' + (result.error || '未知錯誤'));

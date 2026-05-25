@@ -1,7 +1,7 @@
 {
   "name": "music-processor",
   "version": "1.0.0",
-  "description": "Music downloader with pitch shifting and vocal removal",
+  "description": "Music Ring - Audio processor with pitch shifting and vocal removal",
   "main": "src/main/main.js",
   "scripts": {
     "start": "node start.js",
@@ -16,12 +16,13 @@
     "electron-builder": "^26.8.1"
   },
   "dependencies": {
+    "axios": "^1.16.1",
     "electron-log": "^5.0.0",
     "soundtouchjs": "^0.1.30"
   },
   "build": {
-    "appId": "com.processingring.app",
-    "productName": "Processing Ring",
+    "appId": "com.musicring.app",
+    "productName": "Music Ring",
     "directories": {
       "output": "dist"
     },

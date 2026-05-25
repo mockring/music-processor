@@ -3,8 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const log = require('electron-log');
 
-// Backend server URL - 可以在 render.yaml 或環境變數設定
-const SERVER_URL = 'https://music-processor-server.onrender.com';
+// Backend server URL - Vercel (Next.js API Routes) + Supabase
+const SERVER_URL = 'https://music-ring.vercel.app/api/v1';
 
 class AuthManager {
   constructor() {

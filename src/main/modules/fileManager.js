@@ -6,7 +6,7 @@ const os = require('os');
 class FileManager {
   constructor(customOutputDir = null) {
     this.tempDir = path.join(os.tmpdir(), 'music_processor');
-    this.outputDir = customOutputDir || path.join(app.getPath('music'), 'MusicProcessor');
+    this.outputDir = customOutputDir || 'C:\\Users\\User\\Music\\MusicRing';
   }
 
   ensureDirectories() {

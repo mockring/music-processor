@@ -16,7 +16,7 @@ log.transports.console.level = 'debug';
 
 let mainWindow;
 let softwareLicenseManager;
-let apiBaseUrl = process.env.API_URL || 'https://music-processor-server.onrender.com/v1';
+let apiBaseUrl = process.env.API_URL || 'https://music-ring.vercel.app/api/v1';
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -289,7 +289,7 @@ ipcMain.handle('get-license-status', async () => {
       // apiSerialActivateFn - check serial activation with backend
       async (serialKey, machineId) => {
         try {
-          const response = await axios.post(`${apiBaseUrl}/serial/activate`, {
+          const response = await axios.post(`${apiBaseUrl}/software/serial/activate`, {
             serialKey,
             machineId
           });
@@ -319,7 +319,7 @@ ipcMain.handle('activate-license', async (event, serialKey) => {
     serialKey,
     async (serialKey, machineId) => {
       try {
-        const response = await axios.post(`${apiBaseUrl}/serial/activate`, {
+        const response = await axios.post(`${apiBaseUrl}/software/serial/activate`, {
           serialKey,
           machineId
         });
@@ -362,5 +362,17 @@ ipcMain.handle('get-trial-status', async () => {
   if (!softwareLicenseManager) {
     softwareLicenseManager = new SoftwareLicenseManager();
   }
-  return softwareLicenseManager.checkTrialStatus();
+  return softwareLicenseManager.checkTrialStatus(
+    // apiStatusFn - check trial status with backend
+    async () => {
+      try {
+        const response = await axios.get(`${apiBaseUrl}/trial/status`, {
+          params: { machineId: softwareLicenseManager.getMachineIdSync() }
+        });
+        return response.data;
+      } catch (e) {
+        return { success: false, error: { message: e.response?.data?.error?.message || e.message } };
+      }
+    }
+  );
 });

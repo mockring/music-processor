@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
+const { execSync } = require('child_process');
 const log = require('electron-log');
 
 const TRIAL_HOURS = 1; // 1 hour trial
@@ -25,10 +26,10 @@ class SoftwareLicenseManager {
   }
 
   getMachineId() {
-    // Generate a unique machine ID based on system info
     const userDataPath = app.getPath('userData');
     const machineIdPath = path.join(userDataPath, 'machine_id.json');
 
+    // 嘗試讀取快取
     if (fs.existsSync(machineIdPath)) {
       try {
         return JSON.parse(fs.readFileSync(machineIdPath, 'utf8')).machineId;
@@ -37,14 +38,35 @@ class SoftwareLicenseManager {
       }
     }
 
-    // Generate new machine ID
-    const machineId = crypto.randomBytes(16).toString('hex');
+    // 使用硬體特徵生成 machine ID
+    let hardwareId = this.getHardwareId();
     try {
-      fs.writeFileSync(machineIdPath, JSON.stringify({ machineId }), 'utf8');
+      fs.writeFileSync(machineIdPath, JSON.stringify({ machineId: hardwareId }), 'utf8');
     } catch (e) {
       log.error('Failed to save machine ID:', e);
     }
-    return machineId;
+    return hardwareId;
+  }
+
+  getHardwareId() {
+    try {
+      // 取得 CPU ID
+      const cpuId = execSync('wmic cpu get ProcessorId', { encoding: 'utf8', timeout: 5000 })
+        .toString().split('\n')[1].trim();
+      // 取得主機板序號
+      const boardId = execSync('wmic baseboard get SerialNumber', { encoding: 'utf8', timeout: 5000 })
+        .toString().split('\n')[1].trim();
+
+      if (cpuId && boardId) {
+        // 使用 SHA256 雜湊 combine cpuId + boardId
+        return crypto.createHash('sha256').update(cpuId + boardId).digest('hex').substring(0, 32);
+      }
+    } catch (e) {
+      log.warn('Failed to get hardware ID, using fallback:', e.message);
+    }
+
+    // Fallback: 使用隨機 ID（万一硬件信息读取失败）
+    return crypto.randomBytes(16).toString('hex');
   }
 
   // Get machine ID (for API calls)
