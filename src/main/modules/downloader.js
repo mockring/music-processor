@@ -1,7 +1,6 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { app } = require('electron');
 const log = require('electron-log');
 
 class Downloader {
@@ -9,17 +8,28 @@ class Downloader {
     this.fileManager = fileManager;
   }
 
+  getResourcesPath() {
+    // In packaged app: process.resourcesPath = .../Music Ring/resources
+    // Python is stored at: .../Music Ring/resources/python
+    return process.resourcesPath || path.join(__dirname, '../../../resources');
+  }
+
+  getPythonExePath() {
+    return path.join(this.getResourcesPath(), 'python', 'python.exe');
+  }
+
+  getFFmpegBinPath() {
+    return path.join(this.getResourcesPath(), 'ffmpeg', 'bin');
+  }
+
   async download(url, onProgress) {
-    // First get the video title
     const title = await this.getVideoTitle(url);
     const sanitizedTitle = this.sanitizeFileName(title);
     const outputPath = this.fileManager.generateTempFilePath(sanitizedTitle, 'wav');
 
     return new Promise((resolve, reject) => {
-      // Use portable Python environment from extraResources
-      const resourcesPath = app.isPackaged ? path.dirname(app.getAppPath()) : path.join(__dirname, '../../../../');
-      const portablePython = path.join(resourcesPath, 'python', 'python.exe');
-      const ffmpegBinPath = path.join(resourcesPath, 'ffmpeg', 'bin');
+      const portablePython = this.getPythonExePath();
+      const ffmpegBinPath = this.getFFmpegBinPath();
       const args = [
         '-f', 'bestaudio',
         '--extract-audio',
@@ -32,6 +42,8 @@ class Downloader {
       ];
 
       log.info('Starting download with yt-dlp:', url);
+      log.info('Using Python at:', portablePython);
+      log.info('Using FFmpeg at:', ffmpegBinPath);
 
       const ytdlp = spawn(portablePython, ['-m', 'yt_dlp', ...args]);
 
@@ -70,8 +82,7 @@ class Downloader {
 
   async getVideoTitle(url) {
     return new Promise((resolve, reject) => {
-      const resourcesPath = app.isPackaged ? path.dirname(app.getAppPath()) : path.join(__dirname, '../../../../');
-      const portablePython = path.join(resourcesPath, 'python', 'python.exe');
+      const portablePython = this.getPythonExePath();
       const env = { ...process.env, PYTHONIOENCODING: 'utf8' };
       const ytdlp = spawn(portablePython, ['-m', 'yt_dlp', '--get-title', url], { env });
 

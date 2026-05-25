@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, clipboard, dialog } = require('elect
 const path = require('path');
 const fs = require('fs');
 const log = require('electron-log');
+const { autoUpdater } = require('electron-updater');
 const { URLValidator } = require('./modules/urlValidator');
 const { Downloader } = require('./modules/downloader');
 const { AudioProcessor } = require('./modules/audioProcessor');
@@ -9,6 +10,7 @@ const { DemucsRunner } = require('./modules/demucsRunner');
 const { FileManager } = require('./modules/fileManager');
 const { AudioConverter } = require('./modules/audioConverter');
 const { SoftwareLicenseManager } = require('./modules/softwareLicenseManager');
+const { DependencyManager } = require('./modules/dependencyManager');
 const axios = require('axios');
 
 log.transports.file.level = 'info';
@@ -16,6 +18,10 @@ log.transports.console.level = 'debug';
 
 let mainWindow;
 let softwareLicenseManager;
+let dependencyManager;
+let currentProcess = null; // Track current process for cancellation
+let isProcessCancelled = false; // Cancellation flag
+let currentDemucsRunner = null; // Track current DemucsRunner instance for cancellation
 let apiBaseUrl = process.env.API_URL || 'https://music-ring.vercel.app/api/v1';
 
 function createWindow() {
@@ -44,7 +50,74 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  // Initialize dependency manager and check required dependencies
+  dependencyManager = new DependencyManager();
+
+  const pythonOk = dependencyManager.checkPython();
+  const ffmpegOk = dependencyManager.checkFFmpeg();
+
+  if (!pythonOk || !ffmpegOk) {
+    log.info('Missing dependencies, showing install dialog...');
+    // The renderer will show the install dialog
+  }
+
+  createWindow();
+  initAutoUpdater();
+  checkForUpdates();
+});
+
+function initAutoUpdater() {
+  autoUpdater.logger = log;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    log.info('Checking for updates...');
+    sendUpdateStatus('checking');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    log.info('Update available:', info.version);
+    sendUpdateStatus('available', info);
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('No update available');
+    sendUpdateStatus('not-available');
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    log.info(`Download speed: ${progress.bytesPerSecond} - Downloaded ${progress.percent}%`);
+    sendUpdateStatus('downloading', progress);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('Update downloaded:', info.version);
+    sendUpdateStatus('downloaded', info);
+  });
+
+  autoUpdater.on('error', (err) => {
+    log.error('Auto-updater error:', err);
+    sendUpdateStatus('error', { message: err.message });
+  });
+}
+
+function sendUpdateStatus(status, data = {}) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status, ...data });
+  }
+}
+
+function checkForUpdates() {
+  if (!app.isPackaged) {
+    log.info('Skipping update check in development mode');
+    return;
+  }
+  autoUpdater.checkForUpdates().catch(err => {
+    log.error('Check for updates failed:', err);
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -90,6 +163,7 @@ ipcMain.handle('process', async (event, options) => {
   const downloader = new Downloader(fileManager);
   const audioProcessor = new AudioProcessor(fileManager);
   const demucsRunner = new DemucsRunner(fileManager);
+  currentDemucsRunner = demucsRunner;
   const audioConverter = new AudioConverter(fileManager);
 
   try {
@@ -230,11 +304,12 @@ ipcMain.handle('process', async (event, options) => {
     }
 
     sendProgress('完成', 100);
-
+    currentDemucsRunner = null;
     return { success: true, filePath: finalPaths.join('\n') };
 
   } catch (error) {
     log.error('Process error:', error);
+    currentDemucsRunner = null;
     return { success: false, error: error.message };
   }
 });
@@ -375,4 +450,88 @@ ipcMain.handle('get-trial-status', async () => {
       }
     }
   );
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  if (!app.isPackaged) {
+    return { success: false, error: 'Cannot check for updates in development mode' };
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+    return { success: true };
+  } catch (err) {
+    log.error('Manual update check failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('download-update', async () => {
+  if (!app.isPackaged) {
+    return { success: false, error: 'Cannot download updates in development mode' };
+  }
+  try {
+    autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (err) {
+    log.error('Download update failed:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('install-update', async () => {
+  autoUpdater.quitAndInstall(false, true);
+});
+
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('stop-process', async () => {
+  isProcessCancelled = true;
+  if (currentDemucsRunner) {
+    currentDemucsRunner.cancel();
+    log.info('DemucsRunner cancel called');
+  }
+  if (currentProcess && !currentProcess.killed) {
+    currentProcess.kill('SIGTERM');
+    log.info('Process killed');
+  }
+  return { success: true };
+});
+
+ipcMain.handle('check-dependencies', async () => {
+  if (!dependencyManager) {
+    dependencyManager = new DependencyManager();
+  }
+  return {
+    python: dependencyManager.checkPython(),
+    ffmpeg: dependencyManager.checkFFmpeg()
+  };
+});
+
+ipcMain.handle('install-dependencies', async (event) => {
+  if (!dependencyManager) {
+    dependencyManager = new DependencyManager();
+  }
+
+  const sendProgress = (stage, percent) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('dependency-progress', { stage, percent });
+    }
+  };
+
+  return dependencyManager.installDependencies(sendProgress);
+});
+
+ipcMain.handle('get-dependency-status', async () => {
+  if (!dependencyManager) {
+    dependencyManager = new DependencyManager();
+  }
+  return {
+    ready: dependencyManager.checkPython() && dependencyManager.checkFFmpeg(),
+    python: dependencyManager.checkPython(),
+    ffmpeg: dependencyManager.checkFFmpeg(),
+    pythonExe: dependencyManager.getPythonExePath(),
+    ffmpegExe: dependencyManager.getFFmpegPath()
+  };
 });

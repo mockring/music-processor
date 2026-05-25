@@ -18,6 +18,7 @@
   "dependencies": {
     "axios": "^1.16.1",
     "electron-log": "^5.0.0",
+    "electron-updater": "^6.3.9",
     "soundtouchjs": "^0.1.30"
   },
   "build": {
@@ -29,7 +30,7 @@
     "win": {
       "target": [
         {
-          "target": "dir",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
@@ -42,20 +43,6 @@
     ],
     "extraResources": [
       {
-        "from": "C:/Users/User/Anaconda3/envs/musictool",
-        "to": "python",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "C:/Users/User/ffmpeg-8.1-full_build-shared",
-        "to": "ffmpeg",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
         "from": "LICENSE.md",
         "to": "LICENSE.md",
         "filter": [
@@ -63,7 +50,14 @@
         ]
       }
     ],
-    "asar": true,
-    "compression": "maximum"
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "mockring",
+      "repo": "music-processor"
+    }
   }
 }

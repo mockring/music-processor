@@ -12,6 +12,7 @@ const progressSection = document.getElementById('progress-section');
 const progressFill = document.getElementById('progress-fill');
 const progressPercent = document.getElementById('progress-percent');
 const statusText = document.getElementById('status-text');
+const stopBtn = document.getElementById('stop-btn');
 const outputSection = document.getElementById('output-section');
 const outputTitle = document.getElementById('output-title');
 const outputPath = document.getElementById('output-path');
@@ -48,6 +49,7 @@ let currentOutputPath = '';
 let customOutputFolder = null;
 let selectedLocalFile = null;
 let currentLicense = null; // { mode: 'serial'|'trial'|'none', valid: bool, ... }
+let dependenciesReady = false; // Track if Python/FFmpeg are installed
 
 function updateLog(message) {
   const now = new Date();
@@ -275,6 +277,7 @@ processBtn.addEventListener('click', async () => {
   processBtn.disabled = true;
   processBtnText.textContent = '處理中...';
   progressSection.classList.remove('hidden');
+  stopBtn.classList.remove('hidden');
   outputSection.classList.add('hidden');
   progressFill.style.width = '0%';
   progressPercent.textContent = '0%';
@@ -284,6 +287,7 @@ processBtn.addEventListener('click', async () => {
   window.api.process(options).then(result => {
     isProcessing = false;
     processBtn.disabled = false;
+    stopBtn.classList.add('hidden');
     updateProcessButton();
 
     if (result.success) {
@@ -326,6 +330,20 @@ window.api.onProgress((data) => {
   progressPercent.textContent = `${data.percent}%`;
   statusText.textContent = data.stage;
   updateLog(`進度: ${data.stage} (${data.percent}%)`);
+});
+
+stopBtn.addEventListener('click', () => {
+  if (isProcessing) {
+    updateLog('正在停止處理...');
+    stopBtn.disabled = true;
+    stopBtn.textContent = '停止中...';
+    // The stop is handled by the main process via IPC
+    window.api.stopProcess().then(() => {
+      updateLog('處理已停止');
+    }).catch(err => {
+      updateLog('停止失敗: ' + err.message);
+    });
+  }
 });
 
 async function initOutputFolder() {
@@ -504,5 +522,96 @@ async function checkLicense() {
   }
 }
 
+// Check dependencies (Python/FFmpeg) on startup
+async function checkDependencies() {
+  try {
+    const status = await window.api.getDependencyStatus();
+    dependenciesReady = status.ready;
+    if (!status.ready) {
+      updateLog('缺少 Python 或 FFmpeg，正在等待下載...');
+      showDependencyInstallUI();
+    } else {
+      updateLog('依賴檢查完成');
+    }
+  } catch (e) {
+    console.error('Failed to check dependencies:', e);
+    updateLog('依賴檢查失敗');
+  }
+}
+
+function showDependencyInstallUI() {
+  // Create overlay if it doesn't exist
+  if (!document.getElementById('dependency-overlay')) {
+    const overlay = document.createElement('div');
+    overlay.id = 'dependency-overlay';
+    overlay.className = 'dependency-overlay';
+    overlay.innerHTML = `
+      <div class="dependency-modal">
+        <h2>需要下載依賴項目</h2>
+        <p>軟體需要 Python 和 FFmpeg 才能正常運作。</p>
+        <p class="dependency-size">預估下載大小：約 2.1GB</p>
+        <p class="dependency-note">包含：Python 3.12、FFmpeg (shared)、PyTorch CUDA 2.9.0、Demucs 等</p>
+        <button id="install-deps-btn" class="btn btn-primary">開始下載</button>
+        <div id="dep-progress-section" class="dep-progress hidden">
+          <div class="progress-bar">
+            <div class="progress-fill" id="dep-progress-fill"></div>
+          </div>
+          <span id="dep-progress-text">準備中...</span>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Add click handler for install button
+    document.getElementById('install-deps-btn').addEventListener('click', installDependencies);
+  }
+
+  document.getElementById('dependency-overlay').classList.remove('hidden');
+}
+
+async function installDependencies() {
+  const installBtn = document.getElementById('install-deps-btn');
+  const progressSection = document.getElementById('dep-progress-section');
+  const progressFill = document.getElementById('dep-progress-fill');
+  const progressText = document.getElementById('dep-progress-text');
+
+  installBtn.disabled = true;
+  installBtn.textContent = '下載中...';
+  progressSection.classList.remove('hidden');
+
+  try {
+    window.api.onDependencyProgress((data) => {
+      const percent = isNaN(data.percent) ? 0 : Math.floor(data.percent);
+      progressFill.style.width = `${percent}%`;
+      progressText.textContent = `${data.stage}... ${percent}%`;
+      updateLog(`下載進度: ${data.stage} (${percent}%)`);
+    });
+
+    const result = await window.api.installDependencies();
+
+    if (result.python && result.ffmpeg) {
+      dependenciesReady = true;
+      updateLog('依賴下載完成');
+      // Hide overlay and reload
+      document.getElementById('dependency-overlay').classList.add('hidden');
+      location.reload();
+    } else {
+      throw new Error('部分依賴下載失敗');
+    }
+  } catch (e) {
+    updateLog('依賴下載失敗: ' + e.message);
+    installBtn.disabled = false;
+    installBtn.textContent = '重試';
+    progressText.textContent = '下載失敗，請重試';
+  }
+}
+
 // Initialize
-checkLicense();
+async function init() {
+  await checkDependencies();
+  await checkLicense();
+  await initOutputFolder();
+  updateLog('程式就緒');
+}
+
+init();

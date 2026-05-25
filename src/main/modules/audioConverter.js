@@ -1,7 +1,6 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { app } = require('electron');
 const log = require('electron-log');
 
 class AudioConverter {
@@ -10,14 +9,17 @@ class AudioConverter {
   }
 
   getResourcesPath() {
-    return app.isPackaged
-      ? path.dirname(app.getAppPath())
-      : path.join(__dirname, '../../../../');
+    // In packaged app: process.resourcesPath = .../Music Ring/resources
+    // FFmpeg is stored at: .../Music Ring/resources/ffmpeg
+    return process.resourcesPath || path.join(__dirname, '../../../resources');
   }
 
-  getFFmpegPath() {
-    const ffmpegBinPath = path.join(this.getResourcesPath(), 'ffmpeg', 'bin');
-    return path.join(ffmpegBinPath, 'ffmpeg.exe');
+  getFFmpegExePath() {
+    return path.join(this.getResourcesPath(), 'ffmpeg', 'bin', 'ffmpeg.exe');
+  }
+
+  getFFmpegBinPath() {
+    return path.join(this.getResourcesPath(), 'ffmpeg', 'bin');
   }
 
   async convert(inputPath, outputPath, format, bitrate, onProgress) {
@@ -47,10 +49,10 @@ class AudioConverter {
 
       log.info(`Converting to ${format} (${bitrate}-bit):`, inputPath, '->', outputPath);
 
-      const ffmpegBinPath = path.join(this.getResourcesPath(), 'ffmpeg', 'bin');
+      const ffmpegBinPath = this.getFFmpegBinPath();
       const env = { ...process.env, PATH: `${ffmpegBinPath};${process.env.PATH}` };
 
-      const ffmpeg = spawn(this.getFFmpegPath(), args, { env });
+      const ffmpeg = spawn(this.getFFmpegExePath(), args, { env });
 
       let stderrData = '';
 
