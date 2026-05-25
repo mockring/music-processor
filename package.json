@@ -1,6 +1,6 @@
 {
   "name": "music-processor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Music Ring - Audio processor with pitch shifting and vocal removal",
   "main": "src/main/main.js",
   "scripts": {
