@@ -48,13 +48,21 @@ class DependencyManager {
   }
 
   checkPython() {
+    log.info('=== Checking Python ===');
+    log.info('Expected Python path:', this.pythonPath);
+    log.info('process.resourcesPath:', process.resourcesPath);
+
     if (fs.existsSync(this.pythonPath)) {
       const pythonExe = path.join(this.pythonPath, 'python.exe');
       if (fs.existsSync(pythonExe)) {
         log.info('Python found at:', this.pythonPath);
         // List contents for debugging
-        const files = fs.readdirSync(this.pythonPath);
-        log.info('Python folder contents:', files);
+        try {
+          const files = fs.readdirSync(this.pythonPath);
+          log.info('Python folder contents:', files);
+        } catch (e) {
+          log.error('Cannot read Python folder:', e.message);
+        }
         return true;
       }
     }
@@ -113,6 +121,9 @@ class DependencyManager {
   }
 
   checkFFmpeg() {
+    log.info('=== Checking FFmpeg ===');
+    log.info('Expected FFmpeg path:', this.ffmpegPath);
+
     if (fs.existsSync(this.ffmpegPath)) {
       const ffmpegExe = path.join(this.ffmpegPath, 'bin', 'ffmpeg.exe');
       if (fs.existsSync(ffmpegExe)) {
@@ -252,6 +263,7 @@ class DependencyManager {
     log.info('=== Starting Python download ===');
     log.info('Temp path:', this.tempPath);
     log.info('Python path:', this.pythonPath);
+    log.info('Resources path:', this.resourcesPath);
 
     const zipPath = path.join(this.tempPath, 'python.zip');
 
@@ -300,6 +312,11 @@ class DependencyManager {
       await this.asyncExec(`"${pythonExe}" "${pipPath}"`, onProgress, (p) => onProgress(60 + p * 0.05));
       log.info('Pip installed');
 
+      // Install setuptools and wheel (required for pip to work properly)
+      onProgress(63);
+      await this.asyncExec(`"${pythonExe}" -m pip install setuptools wheel --no-input`, onProgress, (p) => onProgress(63 + p * 0.02));
+      log.info('setuptools and wheel installed');
+
       // Install all required packages for GPU support
       // First: basic audio processing packages
       onProgress(65);
@@ -346,16 +363,24 @@ class DependencyManager {
     const missing = this.checkAllPythonPackages();
     log.info('Missing packages:', missing);
 
-    // If pip is missing, we need to reinstall pip first
+    // If pip missing, reinstall it first
     if (missing.includes('pip')) {
       log.info('pip missing, reinstalling...');
       onProgress(55);
-      // Re-download get-pip.py
       const pipUrl = 'https://bootstrap.pypa.io/get-pip.py';
       await this.downloadFile(pipUrl, pipPath, () => {});
       onProgress(60);
       await this.asyncExec(`"${pythonExe}" "${pipPath}"`, onProgress, (p) => onProgress(60 + p * 0.05));
       log.info('pip reinstalled');
+      // Install setuptools and wheel after pip install
+      onProgress(63);
+      await this.asyncExec(`"${pythonExe}" -m pip install setuptools wheel --no-input`, onProgress, (p) => onProgress(63 + p * 0.02));
+      log.info('setuptools and wheel installed');
+    } else {
+      // pip exists but might need setuptools/wheel to be fresh
+      onProgress(58);
+      await this.asyncExec(`"${pythonExe}" -m pip install setuptools wheel --no-input`, onProgress, (p) => onProgress(58 + p * 0.02));
+      log.info('setuptools and wheel ensured');
     }
 
     // Install basic packages if any are missing
@@ -456,6 +481,12 @@ class DependencyManager {
   }
 
   async installDependencies(onProgress) {
+    log.info('=== Starting installDependencies ===');
+    log.info('this.resourcesPath:', this.resourcesPath);
+    log.info('this.pythonPath:', this.pythonPath);
+    log.info('this.ffmpegPath:', this.ffmpegPath);
+    log.info('process.resourcesPath:', process.resourcesPath);
+
     const results = { python: false, ffmpeg: false };
 
     if (!this.checkPython()) {
