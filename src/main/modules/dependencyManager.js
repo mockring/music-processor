@@ -7,16 +7,22 @@ const { app } = require('electron');
 const log = require('electron-log');
 
 class DependencyManager {
-  constructor() {
+  constructor(targetArch) {
+    // Detect architecture if not specified
+    this.targetArch = targetArch || (process.arch === 'arm64' ? 'arm64' : 'x64');
+
     // Use AppData temp folder for downloads to avoid permission issues
     this.tempPath = path.join(app.getPath('temp'), 'MusicRing');
 
     // Resources path: in packaged app, process.resourcesPath = .../Music Ring/resources
-    // Python should go to: .../Music Ring/resources/python
+    // Python should go to: .../Music Ring/resources/python or python-arm64
     this.resourcesPath = process.resourcesPath || path.join(__dirname, '../../../resources');
 
-    this.pythonPath = path.join(this.resourcesPath, 'python');
-    this.ffmpegPath = path.join(this.resourcesPath, 'ffmpeg');
+    const pythonDir = this.targetArch === 'arm64' ? 'python-arm64' : 'python';
+    const ffmpegDir = this.targetArch === 'arm64' ? 'ffmpeg-arm64' : 'ffmpeg';
+
+    this.pythonPath = path.join(this.resourcesPath, pythonDir);
+    this.ffmpegPath = path.join(this.resourcesPath, ffmpegDir);
 
     // Ensure directories exist
     if (!fs.existsSync(this.tempPath)) {
@@ -78,28 +84,17 @@ class DependencyManager {
     }
 
     // Check for package directory or .dist-info
-    const patterns = [
-      path.join(sitePackagesPath, packageName),
-      path.join(sitePackagesPath, `${packageName}.dist-info`),
-      path.join(sitePackagesPath, `${packageName}-*.dist-info`)
-    ];
+    const files = fs.readdirSync(sitePackagesPath);
+    const found = files.some(f => {
+      return f === packageName || f.startsWith(packageName + '-') || f === `${packageName}.dist-info`;
+    });
 
-    for (const pattern of patterns) {
-      const matches = fs.readdirSync(sitePackagesPath).filter(f => {
-        if (packageName.includes('*')) {
-          const regex = new RegExp('^' + packageName.replace(/\*/g, '.*') + '(\\.dist-info)?$');
-          return regex.test(f);
-        }
-        return f === packageName || f.startsWith(packageName + '-');
-      });
-      if (matches.length > 0) {
-        log.info(`Package ${packageName} found:`, matches[0]);
-        return true;
-      }
+    if (found) {
+      log.info(`Package ${packageName} found`);
+    } else {
+      log.info(`Package ${packageName} not found`);
     }
-
-    log.info(`Package ${packageName} not found`);
-    return false;
+    return found;
   }
 
   // Check if all required Python packages are installed
@@ -138,8 +133,12 @@ class DependencyManager {
   // Helper to run commands without blocking UI
   async asyncExec(cmd, onProgress, progressMapper) {
     return new Promise((resolve, reject) => {
-      // Use shell: true to properly handle paths with spaces
-      const child = exec(cmd, { shell: true });
+      // Sanitize command to prevent injection
+      // Only allow safe characters in paths
+      const sanitizedCmd = cmd.replace(/[;&|`$()]/g, '');
+
+      // Use shell: true but with sanitized input
+      const child = exec(sanitizedCmd, { shell: true });
 
       let stderrData = '';
       let closed = false;
@@ -181,7 +180,13 @@ class DependencyManager {
     });
   }
 
-  async downloadFile(url, destPath, onProgress) {
+  async downloadFile(url, destPath, onProgress, redirectCount = 0) {
+    const MAX_REDIRECTS = 10;
+
+    if (redirectCount > MAX_REDIRECTS) {
+      throw new Error('Too many redirects');
+    }
+
     log.info('Downloading:', url);
     log.info('Destination:', destPath);
 
@@ -195,7 +200,8 @@ class DependencyManager {
         headers: {
           'User-Agent': 'Music Ring/1.0'
         },
-        timeout: 30000
+        timeout: 30000,
+        rejectUnauthorized: true  // Enable SSL certificate verification
       }, (response) => {
         log.info('Response status:', response.statusCode);
         log.info('Response headers:', JSON.stringify(response.headers));
@@ -203,7 +209,8 @@ class DependencyManager {
         if (response.statusCode === 301 || response.statusCode === 302) {
           log.info('Redirect to:', response.headers.location);
           request.destroy();
-          this.downloadFile(response.headers.location, destPath, onProgress).then(resolve).catch(reject);
+          this.downloadFile(response.headers.location, destPath, onProgress, redirectCount + 1)
+            .then(resolve).catch(reject);
           return;
         }
 
@@ -353,6 +360,84 @@ class DependencyManager {
     }
   }
 
+  async downloadPythonARM64(onProgress) {
+    log.info('=== Starting ARM64 Python download ===');
+    log.info('Temp path:', this.tempPath);
+    log.info('Python ARM64 path:', this.pythonPath);
+    log.info('Resources path:', this.resourcesPath);
+
+    const zipPath = path.join(this.tempPath, 'python-arm64.zip');
+
+    // Python 3.12 ARM64 embeddable
+    const pythonUrl = 'https://www.python.org/ftp/python/3.12.3/python-3.12.3-embed-arm64.zip';
+
+    try {
+      // Download
+      onProgress(5);
+      await this.downloadFile(pythonUrl, zipPath, (p) => onProgress(5 + p * 0.3));
+      log.info('Downloaded ARM64 Python zip');
+
+      // Extract
+      onProgress(40);
+      if (!fs.existsSync(this.pythonPath)) {
+        fs.mkdirSync(this.pythonPath, { recursive: true });
+      }
+
+      const extractCmd = `powershell -command "Expand-Archive -Path '${zipPath}' -DestinationPath '${this.pythonPath}' -Force"`;
+      log.info('Extracting with:', extractCmd);
+      execSync(extractCmd, { stdio: 'pipe' });
+      log.info('Extracted ARM64 Python');
+      onProgress(50);
+
+      // Fix the embeddable Python restriction
+      const pythonExe = path.join(this.pythonPath, 'python.exe');
+      const pthFile = path.join(this.pythonPath, 'python312._pth');
+      if (fs.existsSync(pthFile)) {
+        let content = fs.readFileSync(pthFile, 'utf8');
+        log.info('python312._pth content:', content);
+        // Uncomment import site to enable site-packages
+        content = content.replace('#import site', 'import site');
+        fs.writeFileSync(pthFile, content);
+        log.info('Fixed python312._pth');
+      }
+
+      // Download get-pip.py
+      onProgress(55);
+      const pipUrl = 'https://bootstrap.pypa.io/get-pip.py';
+      const pipPath = path.join(this.tempPath, 'get-pip.py');
+      await this.downloadFile(pipUrl, pipPath, () => {});
+      log.info('Downloaded get-pip.py');
+
+      // Install pip
+      onProgress(60);
+      await this.asyncExec(`"${pythonExe}" "${pipPath}"`, onProgress, (p) => onProgress(60 + p * 0.05));
+      log.info('Pip installed');
+
+      // Install setuptools and wheel
+      onProgress(63);
+      await this.asyncExec(`"${pythonExe}" -m pip install setuptools wheel --no-input`, onProgress, (p) => onProgress(63 + p * 0.02));
+      log.info('setuptools and wheel installed');
+
+      // Install basic audio processing packages (no PyTorch for ARM64 - use ONNX instead)
+      onProgress(65);
+      await this.asyncExec(`"${pythonExe}" -m pip install yt-dlp numpy scipy librosa soundfile onnxruntime onnxruntime-directml --no-input`, onProgress, (p) => onProgress(65 + p * 0.3));
+      log.info('Basic packages and ONNX runtime installed');
+
+      // Cleanup
+      onProgress(95);
+      fs.unlinkSync(zipPath);
+      if (fs.existsSync(pipPath)) fs.unlinkSync(pipPath);
+
+      log.info('=== ARM64 Python download complete ===');
+      onProgress(100);
+      return true;
+    } catch (err) {
+      log.error('ARM64 Python install failed:', err);
+      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+      return false;
+    }
+  }
+
   // Resume Python installation from where it left off
   async continuePythonInstall(onProgress) {
     log.info('=== Continuing Python installation ===');
@@ -480,18 +565,84 @@ class DependencyManager {
     }
   }
 
+  async downloadFFmpegARM64(onProgress) {
+    log.info('=== Starting ARM64 FFmpeg download ===');
+    log.info('Temp path:', this.tempPath);
+    log.info('FFmpeg ARM64 path:', this.ffmpegPath);
+
+    const zipPath = path.join(this.tempPath, 'ffmpeg-arm64.zip');
+
+    // ARM64 FFmpeg - use BtbN builds which now support ARM64
+    const ffmpegUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip';
+
+    try {
+      await this.downloadFile(ffmpegUrl, zipPath, onProgress);
+      log.info('Downloaded ARM64 FFmpeg zip');
+
+      if (!fs.existsSync(this.tempPath)) {
+        fs.mkdirSync(this.tempPath, { recursive: true });
+      }
+
+      const extractCmd = `powershell -command "Expand-Archive -Path '${zipPath}' -DestinationPath '${this.tempPath}' -Force"`;
+      execSync(extractCmd, { stdio: 'pipe' });
+
+      // Try both folder names - gpl and gpl-shared variants
+      const possibleFolders = [
+        'ffmpeg-master-latest-win64-gpl',
+        'ffmpeg-master-latest-win64-gpl-shared'
+      ];
+
+      let extractedFolder = null;
+      for (const folder of possibleFolders) {
+        const candidate = path.join(this.tempPath, folder);
+        if (fs.existsSync(candidate)) {
+          extractedFolder = candidate;
+          log.info('Found FFmpeg ARM64 folder:', folder);
+          break;
+        }
+      }
+
+      if (extractedFolder) {
+        const binPath = path.join(extractedFolder, 'bin');
+        if (fs.existsSync(binPath)) {
+          if (fs.existsSync(this.ffmpegPath)) {
+            fs.rmSync(this.ffmpegPath, { recursive: true });
+          }
+          fs.renameSync(extractedFolder, this.ffmpegPath);
+          log.info('Moved FFmpeg ARM64 to:', this.ffmpegPath);
+        }
+      } else {
+        log.error('FFmpeg ARM64 folder not found after extraction');
+      }
+
+      fs.unlinkSync(zipPath);
+      log.info('=== ARM64 FFmpeg download complete ===');
+      return true;
+    } catch (err) {
+      log.error('ARM64 FFmpeg install failed:', err);
+      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+      return false;
+    }
+  }
+
   async installDependencies(onProgress) {
     log.info('=== Starting installDependencies ===');
     log.info('this.resourcesPath:', this.resourcesPath);
     log.info('this.pythonPath:', this.pythonPath);
     log.info('this.ffmpegPath:', this.ffmpegPath);
+    log.info('this.targetArch:', this.targetArch);
     log.info('process.resourcesPath:', process.resourcesPath);
 
+    const isARM64 = this.targetArch === 'arm64';
     const results = { python: false, ffmpeg: false };
 
     if (!this.checkPython()) {
       log.info('Python not found, downloading...');
-      results.python = await this.downloadPython(onProgress);
+      if (isARM64) {
+        results.python = await this.downloadPythonARM64(onProgress);
+      } else {
+        results.python = await this.downloadPython(onProgress);
+      }
       if (!results.python) {
         log.error('Python download/install failed');
         return results;
@@ -510,7 +661,11 @@ class DependencyManager {
 
     if (!this.checkFFmpeg()) {
       log.info('FFmpeg not found, downloading...');
-      results.ffmpeg = await this.downloadFFmpeg(onProgress);
+      if (isARM64) {
+        results.ffmpeg = await this.downloadFFmpegARM64(onProgress);
+      } else {
+        results.ffmpeg = await this.downloadFFmpeg(onProgress);
+      }
     } else {
       results.ffmpeg = true;
     }

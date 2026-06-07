@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('api', {
   onProgress: (callback) => {
     ipcRenderer.on('progress', (event, data) => callback(data));
   },
+  removeProgressListener: (callback) => {
+    ipcRenderer.removeListener('progress', callback);
+  },
 
   // License management (NEW - replaces auth)
   getLicenseStatus: () => ipcRenderer.invoke('get-license-status'),

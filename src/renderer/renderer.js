@@ -1,23 +1,25 @@
-// DOM Elements
-const urlInput = document.getElementById('url-input');
-const pasteBtn = document.getElementById('paste-btn');
-const urlError = document.getElementById('url-error');
-const pitchSlider = document.getElementById('pitch-slider');
-const pitchDisplay = document.getElementById('pitch-display');
-const vocalToggle = document.getElementById('vocal-toggle');
-const vocalStatus = document.getElementById('vocal-status');
-const processBtn = document.getElementById('process-btn');
-const processBtnText = document.getElementById('process-btn-text');
-const progressSection = document.getElementById('progress-section');
-const progressFill = document.getElementById('progress-fill');
-const progressPercent = document.getElementById('progress-percent');
-const statusText = document.getElementById('status-text');
-const stopBtn = document.getElementById('stop-btn');
-const outputSection = document.getElementById('output-section');
-const outputTitle = document.getElementById('output-title');
-const outputPath = document.getElementById('output-path');
-const openFolderBtn = document.getElementById('open-folder-btn');
-const logText = document.getElementById('log-text');
+// Wait for DOM to be ready
+document.addEventListener('DOMContentLoaded', () => {
+  // DOM Elements
+  const urlInput = document.getElementById('url-input');
+  const pasteBtn = document.getElementById('paste-btn');
+  const urlError = document.getElementById('url-error');
+  const pitchSlider = document.getElementById('pitch-slider');
+  const pitchDisplay = document.getElementById('pitch-display');
+  const vocalToggle = document.getElementById('vocal-toggle');
+  const vocalStatus = document.getElementById('vocal-status');
+  const processBtn = document.getElementById('process-btn');
+  const processBtnText = document.getElementById('process-btn-text');
+  const progressSection = document.getElementById('progress-section');
+  const progressFill = document.getElementById('progress-fill');
+  const progressPercent = document.getElementById('progress-percent');
+  const statusText = document.getElementById('status-text');
+  const stopBtn = document.getElementById('stop-btn');
+  const outputSection = document.getElementById('output-section');
+  const outputTitle = document.getElementById('output-title');
+  const outputPath = document.getElementById('output-path');
+  const openFolderBtn = document.getElementById('open-folder-btn');
+  const logText = document.getElementById('log-text');
 const outputFolderPath = document.getElementById('output-folder-path');
 const selectFolderBtn = document.getElementById('select-folder-btn');
 
@@ -50,6 +52,7 @@ let customOutputFolder = null;
 let selectedLocalFile = null;
 let currentLicense = null; // { mode: 'serial'|'trial'|'none', valid: bool, ... }
 let dependenciesReady = false; // Track if Python/FFmpeg are installed
+let progressHandler = null; // Store progress listener to prevent accumulation
 
 function updateLog(message) {
   const now = new Date();
@@ -189,6 +192,10 @@ function validateUrl() {
       urlError.classList.remove('hidden');
       processBtn.disabled = true;
     }
+  }).catch(err => {
+    urlError.textContent = '驗證失敗';
+    urlError.classList.remove('hidden');
+    console.error('validateUrl error:', err);
   });
 
   return true;
@@ -325,12 +332,17 @@ selectFolderBtn.addEventListener('click', async () => {
   }
 });
 
-window.api.onProgress((data) => {
+// Remove old progress handler if exists to prevent accumulation
+if (progressHandler) {
+  window.api.removeProgressListener(progressHandler);
+}
+progressHandler = (data) => {
   progressFill.style.width = `${data.percent}%`;
   progressPercent.textContent = `${data.percent}%`;
   statusText.textContent = data.stage;
   updateLog(`進度: ${data.stage} (${data.percent}%)`);
-});
+};
+window.api.onProgress(progressHandler);
 
 stopBtn.addEventListener('click', () => {
   if (isProcessing) {
@@ -509,6 +521,12 @@ async function checkLicense() {
       serialSection.classList.remove('hidden');
       trialSection.classList.add('hidden'); // Hide trial button once started
       deactivateSection.classList.remove('hidden');
+    } else if (currentLicense.hasUsedTrial) {
+      // Trial already used (expired or previously used), hide trial button
+      activationSuccess.classList.add('hidden');
+      serialSection.classList.remove('hidden');
+      trialSection.classList.add('hidden');
+      deactivateSection.classList.add('hidden');
     } else {
       activationSuccess.classList.add('hidden');
       serialSection.classList.remove('hidden');
@@ -615,3 +633,4 @@ async function init() {
 }
 
 init();
+}); // End DOMContentLoaded

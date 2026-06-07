@@ -34,3 +34,6 @@ tmp/
 # *.wav
 # *.mp4
 node_modules
+
+# Docs
+ARM64_SUPPORT.md

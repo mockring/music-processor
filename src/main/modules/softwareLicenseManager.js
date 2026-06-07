@@ -12,7 +12,6 @@ class SoftwareLicenseManager {
     this.licensePath = this.getLicensePath();
     this.trialPath = this.getTrialPath();
     this.machineId = this.getMachineId();
-    this.cache = null;
   }
 
   getLicensePath() {
@@ -90,7 +89,7 @@ class SoftwareLicenseManager {
 
             resolve({
               hasTrial: data.hasTrial,
-              hasUsedTrial: data.hasTrial,
+              hasUsedTrial: data.hasUsedTrial ?? data.hasTrial,
               startedAt: data.trialStartedAt,
               expiresAt: data.trialExpiresAt,
               remainingTime: data.remainingMs,
@@ -103,7 +102,7 @@ class SoftwareLicenseManager {
         log.warn('Failed to check trial with server:', e.message);
       }
 
-      // Fallback to local check
+      // Fallback to local check (uses server-provided expiresAt to prevent time manipulation)
       if (!fs.existsSync(this.trialPath)) {
         resolve({ hasTrial: false, hasUsedTrial: false, remainingTime: 0, isExpired: true });
         return;
@@ -111,10 +110,21 @@ class SoftwareLicenseManager {
 
       try {
         const record = JSON.parse(fs.readFileSync(this.trialPath, 'utf8'));
-        const startedAt = new Date(record.startedAt);
-        const expiresAt = new Date(startedAt.getTime() + TRIAL_HOURS * 60 * 60 * 1000);
+
+        // Use the server-provided expiresAt, not local calculation
+        const expiresAt = record.expiresAt ? new Date(record.expiresAt) : null;
+        const startedAt = record.startedAt ? new Date(record.startedAt) : null;
+
+        // If no expiresAt in cache, trial is invalid
+        if (!expiresAt) {
+          resolve({ hasTrial: false, hasUsedTrial: true, remainingTime: 0, isExpired: true });
+          return;
+        }
+
+        // Compare with server time from API response if available
+        // For fallback, we use the cached expiresAt which is server-authoritative
         const now = new Date();
-        const remainingTime = expiresAt - now;
+        const remainingTime = expiresAt.getTime() - now.getTime();
 
         resolve({
           hasTrial: true,
@@ -136,6 +146,7 @@ class SoftwareLicenseManager {
     try {
       const record = {
         startedAt: data.trialStartedAt,
+        expiresAt: data.trialExpiresAt,  // 儲存伺服器的過期時間，不用本地計算
         machineId: this.machineId
       };
       fs.writeFileSync(this.trialPath, JSON.stringify(record), 'utf8');
@@ -216,8 +227,7 @@ class SoftwareLicenseManager {
           fs.writeFileSync(this.licensePath, JSON.stringify(license, null, 2), 'utf8');
           log.info('Serial key activated:', serialKey);
 
-          this.cache = null; // Clear cache
-          resolve({ success: true, activatedAt: license.activatedAt });
+                    resolve({ success: true, activatedAt: license.activatedAt });
         } else {
           resolve({ success: false, error: result.error?.message || '啟用失敗' });
         }
@@ -234,7 +244,6 @@ class SoftwareLicenseManager {
       if (fs.existsSync(this.licensePath)) {
         fs.unlinkSync(this.licensePath);
       }
-      this.cache = null;
       log.info('License deactivated');
       return { success: true };
     } catch (e) {
@@ -291,7 +300,6 @@ class SoftwareLicenseManager {
       if (fs.existsSync(this.trialPath)) {
         fs.unlinkSync(this.trialPath);
       }
-      this.cache = null;
       log.info('All license data cleared');
       return { success: true };
     } catch (e) {

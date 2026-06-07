@@ -6,6 +6,14 @@ const log = require('electron-log');
 class Downloader {
   constructor(fileManager) {
     this.fileManager = fileManager;
+    this.currentProcess = null;
+  }
+
+  cancel() {
+    if (this.currentProcess && !this.currentProcess.killed) {
+      this.currentProcess.kill('SIGTERM');
+      log.info('Download cancelled');
+    }
   }
 
   getResourcesPath() {
@@ -36,6 +44,7 @@ class Downloader {
         '--audio-format', 'wav',
         '--audio-quality', '0',
         '--ffmpeg-location', ffmpegBinPath,
+        '--no-progress',  // Suppress progress output to stderr
         '-o', outputPath,
         '--no-playlist',
         url
@@ -45,7 +54,19 @@ class Downloader {
       log.info('Using Python at:', portablePython);
       log.info('Using FFmpeg at:', ffmpegBinPath);
 
-      const ytdlp = spawn(portablePython, ['-m', 'yt_dlp', ...args]);
+      // Set UTF-8 encoding for Python output
+      const env = { ...process.env, PYTHONIOENCODING: 'utf8' };
+      const ytdlp = spawn(portablePython, ['-m', 'yt_dlp', ...args], { env });
+
+      // Store reference for cancellation
+      this.currentProcess = ytdlp;
+
+      // Handle cancellation
+      ytdlp.on('exit', (code, signal) => {
+        if (signal === 'SIGTERM') {
+          reject(new Error('下載已取消'));
+        }
+      });
 
       let stderrData = '';
 

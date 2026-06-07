@@ -6,6 +6,14 @@ const log = require('electron-log');
 class AudioConverter {
   constructor(fileManager) {
     this.fileManager = fileManager;
+    this.currentProcess = null;
+  }
+
+  cancel() {
+    if (this.currentProcess && !this.currentProcess.killed) {
+      this.currentProcess.kill('SIGTERM');
+      log.info('Audio conversion cancelled');
+    }
   }
 
   getResourcesPath() {
@@ -40,8 +48,15 @@ class AudioConverter {
           break;
         case 'wav':
         default:
-          // WAV format - specify PCM encoding
-          args.push('-codec:a', 'pcm_s' + bitrate + 'le');
+          // Validate bitrate - only allow 16, 24, or 32
+          const validBitrates = [16, 24, 32];
+          const safeBitrate = validBitrates.includes(bitrate) ? bitrate : 16;
+          // 32-bit needs pcm_f32le (float), 16/24-bit use pcm_sXXle (signed integer)
+          if (safeBitrate === 32) {
+            args.push('-codec:a', 'pcm_f32le');
+          } else {
+            args.push('-codec:a', 'pcm_s' + safeBitrate + 'le');
+          }
           break;
       }
 
@@ -53,6 +68,9 @@ class AudioConverter {
       const env = { ...process.env, PATH: `${ffmpegBinPath};${process.env.PATH}` };
 
       const ffmpeg = spawn(this.getFFmpegExePath(), args, { env });
+
+      // Store reference for cancellation
+      this.currentProcess = ffmpeg;
 
       let stderrData = '';
 

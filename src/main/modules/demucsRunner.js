@@ -8,6 +8,14 @@ class DemucsRunner {
     this.fileManager = fileManager;
     this.currentProcess = null;
     this.isCancelled = false;
+
+    // Detect architecture
+    this.isARM64 = process.arch === 'arm64';
+    this.onnxSession = null;
+
+    if (this.isARM64) {
+      log.info('ARM64 architecture detected - will use ONNX runtime');
+    }
   }
 
   cancel() {
@@ -32,14 +40,21 @@ class DemucsRunner {
   }
 
   getPythonExePath() {
-    return path.join(this.getResourcesPath(), 'python', 'python.exe');
+    const pythonDir = this.isARM64 ? 'python-arm64' : 'python';
+    return path.join(this.getResourcesPath(), pythonDir, 'python.exe');
   }
 
   getFFmpegBinPath() {
-    return path.join(this.getResourcesPath(), 'ffmpeg', 'bin');
+    const ffmpegDir = this.isARM64 ? 'ffmpeg-arm64' : 'ffmpeg';
+    return path.join(this.getResourcesPath(), ffmpegDir, 'bin');
   }
 
   async separate(audioPath, onProgress) {
+    // Use ONNX for ARM64
+    if (this.isARM64) {
+      return this.separateONNX(audioPath, onProgress);
+    }
+
     const inputDir = path.dirname(audioPath);
     const model = 'htdemucs_ft';
     this.reset();
@@ -146,6 +161,11 @@ class DemucsRunner {
   }
 
   async separateAll(audioPath, onProgress) {
+    // Use ONNX for ARM64
+    if (this.isARM64) {
+      return this.separateAllONNX(audioPath, onProgress);
+    }
+
     const inputDir = path.dirname(audioPath);
     const model = 'htdemucs_ft';
     this.reset();
@@ -304,7 +324,314 @@ class DemucsRunner {
     });
   }
 
-  cleanupDemacsTemp(audioPath) {
+  // ARM64: Get Python executable path for ONNX inference
+  getONNXPythonExe() {
+    return this.getPythonExePath();
+  }
+
+  // ARM64: Separate audio using Python ONNX runtime (via subprocess)
+  async separateONNX(audioPath, onProgress) {
+    const inputDir = path.dirname(audioPath);
+    const modelPath = path.join(this.getResourcesPath(), 'models', 'htdemucs_ft.onnx');
+    const tempDir = this.fileManager.getTempDir();
+    this.reset();
+
+    // Create a Python script for ONNX inference
+    const pythonScript = `
+import sys
+import numpy as np
+import onnxruntime as ort
+
+# Get input audio path from command line
+audio_path = sys.argv[1]
+model_path = sys.argv[2]
+output_dir = sys.argv[3]
+
+# Create session with DirectML (GPU) or CPU
+sess_options = ort.SessionOptions()
+sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+
+try:
+    session = ort.InferenceSession(model_path, sess_options, providers=['DirectML', 'CPU'])
+except Exception as e:
+    print(f"DirectML failed: {e}, falling back to CPU")
+    session = ort.InferenceSession(model_path, sess_options, providers=['CPU'])
+
+# Load and preprocess audio using ffmpeg
+import subprocess
+import tempfile
+import os
+
+# Convert audio to 16kHz mono float32
+temp_wav = os.path.join(tempfile.gettempdir(), 'temp_input.wav')
+subprocess.run([
+    'ffmpeg', '-y', '-i', audio_path,
+    '-ar', '16000', '-ac', '1', '-f', 'f32le', temp_wav
+], check=True, capture_output=True)
+
+# Read audio samples
+audio_data = np.frombuffer(open(temp_wav, 'rb').read(), dtype=np.float32)
+os.unlink(temp_wav)
+
+# Create input tensor (batch=1, channels=1, time)
+audio_tensor = audio_data.reshape(1, 1, -1).astype(np.float32)
+
+# Run inference
+feeds = {'audio': audio_tensor}
+results = session.run(None, feeds)
+
+# stems = ['vocals', 'drums', 'bass', 'other']
+stems = ['vocals', 'drums', 'bass', 'other']
+output_paths = []
+
+for i, stem_name in enumerate(stems):
+    stem_data = results[i].squeeze()  # Remove batch and channel dims
+
+    # Convert float32 to int16
+    stem_int16 = np.clip(stem_data * 32767, -32768, 32767).astype(np.int16)
+
+    # Write to WAV file
+    stem_path = os.path.join(output_dir, f'{stem_name}.wav')
+
+    # Write raw PCM
+    raw_path = stem_path.replace('.wav', '.raw')
+    with open(raw_path, 'wb') as f:
+        f.write(stem_int16.tobytes())
+
+    # Convert raw PCM to WAV
+    subprocess.run([
+        'ffmpeg', '-y', '-f', 's16le', '-ar', '16000', '-ac', '1',
+        '-i', raw_path, stem_path
+    ], check=True, capture_output=True)
+
+    os.unlink(raw_path)
+    output_paths.append(stem_path)
+    print(f"Processed {stem_name}")
+
+# Mix non-vocal stems for instrumental
+print("Mixing instrumental...")
+`;
+
+    return new Promise((resolve, reject) => {
+      const pythonExe = this.getONNXPythonExe();
+      const ffmpegBinPath = this.getFFmpegBinPath();
+      const env = {
+        ...process.env,
+        PATH: `${ffmpegBinPath};${process.env.PATH}`,
+        PYTHONIOENCODING: 'utf8'
+      };
+
+      // Write Python script to temp file
+      const scriptPath = path.join(tempDir, 'onnx_inference.py');
+      fs.writeFileSync(scriptPath, pythonScript);
+
+      const args = [scriptPath, audioPath, modelPath, tempDir];
+
+      log.info('Running Demucs separation with ONNX + DirectML');
+
+      const python = spawn(pythonExe, args, { env });
+      this.currentProcess = python;
+
+      let stderrData = '';
+
+      python.stderr.on('data', (data) => {
+        if (this.isCancelled) return;
+        stderrData += data.toString();
+      });
+
+      python.on('error', (error) => {
+        if (this.isCancelled) {
+          reject(new Error('處理已取消'));
+          return;
+        }
+        log.error('ONNX Python spawn error:', error);
+        reject(error);
+      });
+
+      python.on('close', (code) => {
+        this.currentProcess = null;
+        if (this.isCancelled) {
+          reject(new Error('處理已取消'));
+          return;
+        }
+
+        // Cleanup script
+        if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
+
+        if (code === 0) {
+          const noVocalsPath = path.join(tempDir, 'no_vocals.wav');
+          const vocalsPath = path.join(tempDir, 'vocals.wav');
+          const bassPath = path.join(tempDir, 'bass.wav');
+          const drumsPath = path.join(tempDir, 'drums.wav');
+          const otherPath = path.join(tempDir, 'other.wav');
+
+          if (fs.existsSync(otherPath)) {
+            // Mix bass, drums, other for instrumental
+            this.mixAudio([otherPath, bassPath, drumsPath], noVocalsPath)
+              .then(() => {
+                if (this.isCancelled) {
+                  reject(new Error('處理已取消'));
+                  return;
+                }
+                onProgress(100);
+                resolve(noVocalsPath);
+              })
+              .catch(reject);
+          } else {
+            reject(new Error('ONNX 分離結果找不到 stem 檔案'));
+          }
+        } else {
+          log.error('ONNX Python exited with code:', code);
+          log.error('stderr:', stderrData);
+          reject(new Error(`ONNX 分離失敗: ${stderrData || '未知錯誤'}`));
+        }
+      });
+    });
+  }
+
+  // ARM64: Separate all stems using Python ONNX runtime
+  async separateAllONNX(audioPath, onProgress) {
+    const inputDir = path.dirname(audioPath);
+    const modelPath = path.join(this.getResourcesPath(), 'models', 'htdemucs_ft.onnx');
+    const tempDir = this.fileManager.getTempDir();
+    this.reset();
+
+    const pythonScript = `
+import sys
+import numpy as np
+import onnxruntime as ort
+
+audio_path = sys.argv[1]
+model_path = sys.argv[2]
+output_dir = sys.argv[3]
+
+sess_options = ort.SessionOptions()
+sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+
+try:
+    session = ort.InferenceSession(model_path, sess_options, providers=['DirectML', 'CPU'])
+except Exception as e:
+    session = ort.InferenceSession(model_path, sess_options, providers=['CPU'])
+
+import subprocess
+import tempfile
+import os
+
+temp_wav = os.path.join(tempfile.gettempdir(), 'temp_input.wav')
+subprocess.run([
+    'ffmpeg', '-y', '-i', audio_path,
+    '-ar', '16000', '-ac', '1', '-f', 'f32le', temp_wav
+], check=True, capture_output=True)
+
+audio_data = np.frombuffer(open(temp_wav, 'rb').read(), dtype=np.float32)
+os.unlink(temp_wav)
+
+audio_tensor = audio_data.reshape(1, 1, -1).astype(np.float32)
+feeds = {'audio': audio_tensor}
+results = session.run(None, feeds)
+
+stems = ['vocals', 'drums', 'bass', 'other']
+output_paths = []
+
+for i, stem_name in enumerate(stems):
+    stem_data = results[i].squeeze()
+    stem_int16 = np.clip(stem_data * 32767, -32768, 32767).astype(np.int16)
+    stem_path = os.path.join(output_dir, f'{stem_name}.wav')
+    raw_path = stem_path.replace('.wav', '.raw')
+    with open(raw_path, 'wb') as f:
+        f.write(stem_int16.tobytes())
+    subprocess.run([
+        'ffmpeg', '-y', '-f', 's16le', '-ar', '16000', '-ac', '1',
+        '-i', raw_path, stem_path
+    ], check=True, capture_output=True)
+    os.unlink(raw_path)
+    output_paths.append(stem_path)
+    print(f"Processed {stem_name}")
+
+print("ALL_STEMS_COMPLETE")
+`;
+
+    return new Promise((resolve, reject) => {
+      const pythonExe = this.getONNXPythonExe();
+      const ffmpegBinPath = this.getFFmpegBinPath();
+      const env = {
+        ...process.env,
+        PATH: `${ffmpegBinPath};${process.env.PATH}`,
+        PYTHONIOENCODING: 'utf8'
+      };
+
+      const scriptPath = path.join(tempDir, 'onnx_inference_all.py');
+      fs.writeFileSync(scriptPath, pythonScript);
+
+      const args = [scriptPath, audioPath, modelPath, tempDir];
+
+      log.info('Running Demucs all-stems separation with ONNX + DirectML');
+
+      const python = spawn(pythonExe, args, { env });
+      this.currentProcess = python;
+
+      let stderrData = '';
+      let stdoutData = '';
+
+      python.stdout.on('data', (data) => {
+        if (this.isCancelled) return;
+        stdoutData += data.toString();
+        if (stdoutData.includes('ALL_STEMS_COMPLETE')) {
+          onProgress(100);
+        }
+      });
+
+      python.stderr.on('data', (data) => {
+        if (this.isCancelled) return;
+        stderrData += data.toString();
+      });
+
+      python.on('error', (error) => {
+        if (this.isCancelled) {
+          reject(new Error('處理已取消'));
+          return;
+        }
+        log.error('ONNX Python all-stems spawn error:', error);
+        reject(error);
+      });
+
+      python.on('close', (code) => {
+        this.currentProcess = null;
+        if (this.isCancelled) {
+          reject(new Error('處理已取消'));
+          return;
+        }
+
+        if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
+
+        if (code === 0) {
+          const bassPath = path.join(tempDir, 'bass.wav');
+          const drumsPath = path.join(tempDir, 'drums.wav');
+          const otherPath = path.join(tempDir, 'other.wav');
+          const vocalsPath = path.join(tempDir, 'vocals.wav');
+
+          const outputPaths = [];
+          if (fs.existsSync(bassPath)) outputPaths.push(bassPath);
+          if (fs.existsSync(drumsPath)) outputPaths.push(drumsPath);
+          if (fs.existsSync(otherPath)) outputPaths.push(otherPath);
+          if (fs.existsSync(vocalsPath)) outputPaths.push(vocalsPath);
+
+          if (outputPaths.length > 0) {
+            onProgress(100);
+            resolve(outputPaths);
+          } else {
+            reject(new Error('ONNX 分離結果找不到任何音軌檔案'));
+          }
+        } else {
+          log.error('ONNX Python all-stems exited with code:', code);
+          log.error('stderr:', stderrData);
+          reject(new Error(`ONNX 多軌分離失敗: ${stderrData || '未知錯誤'}`));
+        }
+      });
+    });
+  }
+
+  cleanupDemucsTemp(audioPath) {
     const inputDir = path.dirname(audioPath);
     const model = 'htdemucs_ft';
     const baseName = path.basename(audioPath, path.extname(audioPath));

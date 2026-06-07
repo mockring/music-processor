@@ -19,7 +19,6 @@ log.transports.console.level = 'debug';
 let mainWindow;
 let softwareLicenseManager;
 let dependencyManager;
-let currentProcess = null; // Track current process for cancellation
 let isProcessCancelled = false; // Cancellation flag
 let currentDemucsRunner = null; // Track current DemucsRunner instance for cancellation
 let apiBaseUrl = process.env.API_URL || 'https://music-ring.vercel.app/api/v1';
@@ -51,9 +50,25 @@ function createWindow() {
   });
 }
 
+// Detect target architecture - allow override via env var
+function getTargetArchitecture() {
+  // Allow override for testing or cross-compilation
+  if (process.env.TARGET_ARCH) {
+    return process.env.TARGET_ARCH;
+  }
+  // Detect from process.arch
+  if (process.arch === 'arm64') {
+    return 'arm64';
+  }
+  return 'x64';
+}
+
 app.whenReady().then(async () => {
-  // Initialize dependency manager and check required dependencies
-  dependencyManager = new DependencyManager();
+  const targetArch = getTargetArchitecture();
+  log.info(`Target architecture: ${targetArch}`);
+
+  // Initialize dependency manager with target architecture
+  dependencyManager = new DependencyManager(targetArch);
 
   const pythonOk = dependencyManager.checkPython();
   const ffmpegOk = dependencyManager.checkFFmpeg();
@@ -199,10 +214,17 @@ ipcMain.handle('process', async (event, options) => {
 
     sendProgress('處理音高', 30);
 
-    let processedPath = await audioProcessor.changePitch(audioPath, pitch, (percent) => {
-      const adjusted = 30 + percent * 0.15;
-      sendProgress('處理音高', Math.round(adjusted));
-    });
+    let processedPath;
+    if (pitch === 0) {
+      // No pitch change needed but use temp file for local files
+      processedPath = localFile ? await audioProcessor.copyToTemp(audioPath) : audioPath;
+      sendProgress('處理音高', 45);
+    } else {
+      processedPath = await audioProcessor.changePitch(audioPath, pitch, (percent) => {
+        const adjusted = 30 + percent * 0.15;
+        sendProgress('處理音高', Math.round(adjusted));
+      });
+    }
 
     let outputPaths = [];
 
@@ -216,25 +238,27 @@ ipcMain.handle('process', async (event, options) => {
       });
 
       // Filter to only selected stems
-      const stemFileNames = stems.map(s => `${s}.wav`);
-      outputPaths = allStems.filter(sp => {
-        const baseName = path.basename(sp, path.extname(sp));
-        return stemFileNames.includes(baseName + '.wav') || stemFileNames.includes(path.basename(sp));
-      });
+      if (stems && stems.length > 0) {
+        // Match by basename (without extension)
+        outputPaths = allStems.filter(sp => {
+          const baseName = path.basename(sp, path.extname(sp));
+          return stems.includes(baseName);
+        });
 
-      // If filter didn't work, try matching by basename
-      if (outputPaths.length === 0) {
-        for (const stem of stems) {
-          const match = allStems.find(sp => {
-            const bn = path.basename(sp, path.extname(sp));
-            return bn === stem;
-          });
-          if (match) outputPaths.push(match);
+        // If filter didn't work, try case-insensitive matching
+        if (outputPaths.length === 0) {
+          for (const stem of stems) {
+            const match = allStems.find(sp => {
+              const bn = path.basename(sp, path.extname(sp)).toLowerCase();
+              return bn === stem.toLowerCase();
+            });
+            if (match) outputPaths.push(match);
+          }
         }
       }
 
-      // If still empty, use all stems as fallback
-      if (outputPaths.length === 0) {
+      // If no stems selected or filter failed, use all stems as fallback
+      if (!stems || stems.length === 0 || outputPaths.length === 0) {
         outputPaths = allStems;
       }
 
@@ -497,20 +521,31 @@ ipcMain.handle('get-app-version', async () => {
 
 ipcMain.handle('stop-process', async () => {
   isProcessCancelled = true;
+
+  // Cancel all possible running processes
   if (currentDemucsRunner) {
     currentDemucsRunner.cancel();
     log.info('DemucsRunner cancel called');
   }
-  if (currentProcess && !currentProcess.killed) {
-    currentProcess.kill('SIGTERM');
-    log.info('Process killed');
+  if (audioProcessor) {
+    audioProcessor.cancel();
+    log.info('AudioProcessor cancel called');
   }
+  if (audioConverter) {
+    audioConverter.cancel();
+    log.info('AudioConverter cancel called');
+  }
+  if (downloader) {
+    downloader.cancel();
+    log.info('Downloader cancel called');
+  }
+
   return { success: true };
 });
 
 ipcMain.handle('check-dependencies', async () => {
   if (!dependencyManager) {
-    dependencyManager = new DependencyManager();
+    dependencyManager = new DependencyManager(getTargetArchitecture());
   }
   return {
     python: dependencyManager.checkPython(),
@@ -520,7 +555,7 @@ ipcMain.handle('check-dependencies', async () => {
 
 ipcMain.handle('install-dependencies', async (event) => {
   if (!dependencyManager) {
-    dependencyManager = new DependencyManager();
+    dependencyManager = new DependencyManager(getTargetArchitecture());
   }
 
   const sendProgress = (stage, percent) => {
@@ -529,12 +564,26 @@ ipcMain.handle('install-dependencies', async (event) => {
     }
   };
 
-  return dependencyManager.installDependencies(sendProgress);
+  // Add timeout: 30 minutes for full dependency installation
+  const timeoutMs = 30 * 60 * 1000;
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('安裝超時，請檢查網路連線')), timeoutMs)
+  );
+
+  try {
+    return await Promise.race([
+      dependencyManager.installDependencies(sendProgress),
+      timeoutPromise
+    ]);
+  } catch (err) {
+    log.error('Dependency installation failed or timed out:', err);
+    throw err;
+  }
 });
 
 ipcMain.handle('get-dependency-status', async () => {
   if (!dependencyManager) {
-    dependencyManager = new DependencyManager();
+    dependencyManager = new DependencyManager(getTargetArchitecture());
   }
   return {
     ready: dependencyManager.checkPython() && dependencyManager.checkFFmpeg(),

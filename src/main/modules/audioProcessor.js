@@ -7,11 +7,27 @@ const log = require('electron-log');
 class AudioProcessor {
   constructor(fileManager) {
     this.fileManager = fileManager;
+    this.currentProcess = null;
+  }
+
+  cancel() {
+    if (this.currentProcess && !this.currentProcess.killed) {
+      this.currentProcess.kill('SIGTERM');
+      log.info('Audio processing cancelled');
+    }
+  }
+
+  // Copy file to temp directory to prevent source directory pollution
+  async copyToTemp(inputPath) {
+    const fs = require('fs');
+    const outputPath = this.fileManager.generateTempFilePath('copy', 'wav');
+    fs.copyFileSync(inputPath, outputPath);
+    return outputPath;
   }
 
   async changePitch(inputPath, semitones, onProgress) {
     if (semitones === 0) {
-      onProgress(100);
+      // Skip pitch processing, caller handles progress
       return inputPath;
     }
 
@@ -37,6 +53,9 @@ class AudioProcessor {
 
       const ffmpeg = spawn(ffmpegPath, args, { env });
 
+      // Store reference for cancellation
+      this.currentProcess = ffmpeg;
+
       let stderrData = '';
 
       ffmpeg.stderr.on('data', (data) => {
@@ -46,7 +65,7 @@ class AudioProcessor {
       ffmpeg.on('error', (error) => {
         log.error('ffmpeg spawn error:', error);
         if (error.code === 'ENOENT') {
-          reject(new Error('找不到 ffmpeg，請確認已安裝並加入系統路徑'));
+          reject(new Error('找不到 ffmpeg，請先安裝依賴項目'));
         } else {
           reject(error);
         }
