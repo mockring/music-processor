@@ -23,6 +23,7 @@ let currentProcess = null; // Track current process for cancellation
 let isProcessCancelled = false; // Cancellation flag
 let currentDemucsRunner = null; // Track current DemucsRunner instance for cancellation
 let apiBaseUrl = process.env.API_URL || 'https://music-ring.vercel.app/api/v1';
+const softwareApiKey = process.env.SOFTWARE_API_KEY || '';
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -354,7 +355,8 @@ ipcMain.handle('get-license-status', async () => {
       async () => {
         try {
           const response = await axios.get(`${apiBaseUrl}/trial/status`, {
-            params: { machineId: softwareLicenseManager.getMachineIdSync() }
+            params: { machineId: softwareLicenseManager.getMachineIdSync() },
+            headers: { 'X-Software-Api-Key': softwareApiKey }
           });
           return response.data;
         } catch (e) {
@@ -367,6 +369,8 @@ ipcMain.handle('get-license-status', async () => {
           const response = await axios.post(`${apiBaseUrl}/software/serial/activate`, {
             serialKey,
             machineId
+          }, {
+            headers: { 'X-Software-Api-Key': softwareApiKey }
           });
           return response.data;
         } catch (e) {
@@ -397,6 +401,8 @@ ipcMain.handle('activate-license', async (event, serialKey) => {
         const response = await axios.post(`${apiBaseUrl}/software/serial/activate`, {
           serialKey,
           machineId
+        }, {
+          headers: { 'X-Software-Api-Key': softwareApiKey }
         });
         return response.data;
       } catch (e) {
@@ -424,6 +430,8 @@ ipcMain.handle('start-trial', async () => {
       try {
         const response = await axios.post(`${apiBaseUrl}/trial/start`, {
           machineId: softwareLicenseManager.getMachineIdSync()
+        }, {
+          headers: { 'X-Software-Api-Key': softwareApiKey }
         });
         return response.data;
       } catch (e) {
@@ -442,7 +450,8 @@ ipcMain.handle('get-trial-status', async () => {
     async () => {
       try {
         const response = await axios.get(`${apiBaseUrl}/trial/status`, {
-          params: { machineId: softwareLicenseManager.getMachineIdSync() }
+          params: { machineId: softwareLicenseManager.getMachineIdSync() },
+          headers: { 'X-Software-Api-Key': softwareApiKey }
         });
         return response.data;
       } catch (e) {
